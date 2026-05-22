@@ -43,6 +43,7 @@ export class ChatPanel {
     document.getElementById('chat-close')?.addEventListener('click', () => this.hide());
     document.getElementById('chat-send')?.addEventListener('click', () => void this.send());
     this.inputEl.addEventListener('keydown', (e) => {
+      e.stopPropagation();
       if (e.key === 'Enter') void this.send();
       if (e.key === 'Escape') this.hide();
     });
@@ -55,6 +56,10 @@ export class ChatPanel {
 
   hide(): void {
     this.el.classList.remove('open');
+  }
+
+  isOpen(): boolean {
+    return this.el.classList.contains('open');
   }
 
   toggle(): void {
@@ -150,7 +155,7 @@ export class ChatPanel {
     
     // Spend 10 $LLM for manual chat queries
     if (!spendLLM(this.rt.memory, 10, 'manual chat query')) {
-      this.appendPublic('system', 'Insufficient $LLM balance to perform manual chat query! (Requires 10 $LLM)');
+      if (this.onReply) this.onReply('Need 10 $LLM to chat!');
       return;
     }
     
@@ -197,7 +202,7 @@ export class ChatPanel {
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Chat failed';
-      this.appendPublic('system', msg);
+      if (this.onReply) this.onReply('(silence...)');
       noteChat(
         this.rt.memory,
         text,

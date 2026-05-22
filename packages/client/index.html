@@ -461,6 +461,28 @@
         color: #e8f0d0;
         background: #306230;
         padding: 3px 6px;
+      .api-log-empty {
+        color: #306230;
+        text-align: center;
+        padding-top: 40px;
+      }
+      .api-log-entry {
+        border-bottom: 1px dashed #306230;
+        padding: 5px 0;
+        word-break: break-all;
+        white-space: pre-wrap;
+        font-family: monospace;
+      }
+      .api-log-tx {
+        color: #e8f0d0;
+      }
+      .api-log-rx {
+        color: #9bbc0f;
+      }
+      .api-log-err {
+        color: #e8f0d0;
+        background: #306230;
+        padding: 3px 6px;
         border-left: 3px solid #9bbc0f;
         margin-top: 4px;
       }
@@ -508,11 +530,11 @@
           </div>
         </div>
       </div>
-      <div id="memory-hint">T = talk / P = AI provider / G = API log / memory grows as you walk</div>
+      <div id="memory-hint">ESC = talk / P = AI provider / G = API log / memory grows as you walk</div>
       <div id="build-hint" class="hidden">BUILD - 1-9 select / Q-R cycle / E or click place / DEL clear / B exit</div>
       <div id="chat-panel">
         <div id="chat-header">
-          <span>TOKEMON CHAT (T)</span>
+          <span>TOKEMON CHAT (ESC)</span>
           <button type="button" id="chat-close">ESC</button>
         </div>
         <div id="chat-log"></div>

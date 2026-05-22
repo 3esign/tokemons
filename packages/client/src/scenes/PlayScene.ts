@@ -13,6 +13,8 @@ import { TILE, viewSize } from '../config.js';
 import { chatCompletion, extractReply } from '../lib/api.js';
 import { cellSeed, seedToFloat } from '@tokemons/kernel';
 import { BUILD_PARTS, getBuildPart, nextBuildPartId } from '../game/build-catalog.js';
+import { ProceduralAudio } from '../game/audio.js';
+
 const MOVE_COOLDOWN_MS = 96;
 const WORLD_CHUNK_SIZE = 32;
 const MINEABLE_PROPS = new Set([
@@ -46,7 +48,9 @@ export class PlayScene extends Phaser.Scene {
   private hudBg!: Phaser.GameObjects.Graphics;
   private spatialEvents = new SpatialEventBus();
   private chat!: ChatPanel;
+  private audio!: ProceduralAudio;
   private moveLock = false;
+  private isSleeping = false;
   private visualPlayerX = 0;
   private visualPlayerY = 0;
   private camX = 0;
@@ -57,10 +61,6 @@ export class PlayScene extends Phaser.Scene {
   private faceDy = 1;
   private lastProp = '';
   private keys!: {
-    W: Phaser.Input.Keyboard.Key;
-    A: Phaser.Input.Keyboard.Key;
-    S: Phaser.Input.Keyboard.Key;
-    D: Phaser.Input.Keyboard.Key;
     cursors: Phaser.Types.Input.Keyboard.CursorKeys;
   };
   private autonomousMode = false;
@@ -126,26 +126,39 @@ export class PlayScene extends Phaser.Scene {
     this.chat = new ChatPanel(this.rt, () => this.spatialEvents.recent(), (text) => this.showSpeechBubble(text));
     document.getElementById('build-hint')!.classList.toggle('hidden', !this.rt.buildMode);
 
+    this.audio = new ProceduralAudio();
+    this.audio.start(this.rt.worldSeed);
+    this.events.on('shutdown', () => this.audio.dispose());
+
     const kb = this.input.keyboard!;
     this.keys = {
-      W: kb.addKey(Phaser.Input.Keyboard.KeyCodes.W),
-      A: kb.addKey(Phaser.Input.Keyboard.KeyCodes.A),
-      S: kb.addKey(Phaser.Input.Keyboard.KeyCodes.S),
-      D: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
       cursors: kb.createCursorKeys(),
     };
 
-    kb.on('keydown-T', () => this.chat.toggle());
+    kb.on('keydown-ESC', () => this.chat.toggle());
     kb.on('keydown-B', () => {
+      if (this.chat.isOpen()) return;
       this.rt.buildMode = !this.rt.buildMode;
       document.getElementById('build-hint')!.classList.toggle('hidden', !this.rt.buildMode);
       this.refreshHud();
     });
     this.bindBuildHotkeys(kb);
-    kb.on('keydown-E', () => this.inspectOrMine());
-    kb.on('keydown-F', () => this.toggleAutonomousMode());
-    kb.on('keydown-BACKSPACE', () => this.clearBlockAhead());
-    kb.on('keydown-DELETE', () => this.clearBlockAhead());
+    kb.on('keydown-E', () => {
+      if (this.chat.isOpen()) return;
+      this.inspectOrMine();
+    });
+    kb.on('keydown-F', () => {
+      if (this.chat.isOpen()) return;
+      this.toggleAutonomousMode();
+    });
+    kb.on('keydown-BACKSPACE', () => {
+      if (this.chat.isOpen()) return;
+      this.clearBlockAhead();
+    });
+    kb.on('keydown-DELETE', () => {
+      if (this.chat.isOpen()) return;
+      this.clearBlockAhead();
+    });
 
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.onPointerPlace(p));
 
@@ -201,13 +214,13 @@ export class PlayScene extends Phaser.Scene {
       }
     }
 
-    if (this.moveLock || this.autonomousMode) return;
+    if (this.moveLock || this.autonomousMode || this.chat.isOpen()) return;
     let dx = 0;
     let dy = 0;
-    if (this.keys.A.isDown || this.keys.cursors.left.isDown) dx = -1;
-    if (this.keys.D.isDown || this.keys.cursors.right.isDown) dx = 1;
-    if (this.keys.W.isDown || this.keys.cursors.up.isDown) dy = -1;
-    if (this.keys.S.isDown || this.keys.cursors.down.isDown) dy = 1;
+    if (this.keys.cursors.left.isDown) dx = -1;
+    if (this.keys.cursors.right.isDown) dx = 1;
+    if (this.keys.cursors.up.isDown) dy = -1;
+    if (this.keys.cursors.down.isDown) dy = 1;
     if (dx !== 0 || dy !== 0) void this.tryMove(dx, dy);
   }
 
@@ -218,6 +231,9 @@ export class PlayScene extends Phaser.Scene {
       this.spatialEvents.push({ type: 'blocked', detail: 'terrain' });
       return;
     }
+    const cell = getCell(this.rt, nx, ny);
+    this.audio.playFootstep(cell.biomeId);
+
     this.faceDx = dx;
     this.faceDy = dy;
 
@@ -238,7 +254,6 @@ export class PlayScene extends Phaser.Scene {
     this.recordVisitation(nx, ny);
     noteWander(this.rt.memory);
 
-    const cell = getCell(this.rt, nx, ny);
     const placedBlockId = this.rt.placedBlocks.get(blockKey(nx, ny));
     const isRoad =
       (placedBlockId != null && getBuildPart(placedBlockId).walkable) ||
@@ -368,16 +383,19 @@ export class PlayScene extends Phaser.Scene {
     const keyNames = ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'];
     for (let i = 0; i < BUILD_PARTS.length; i++) {
       kb.on(`keydown-${keyNames[i]}`, () => {
+        if (this.chat.isOpen()) return;
         this.rt.selectedBlock = BUILD_PARTS[i]!.id;
         this.refreshHud();
       });
     }
     kb.on('keydown-Q', () => {
+      if (this.chat.isOpen()) return;
       if (!this.rt.buildMode) return;
       this.rt.selectedBlock = nextBuildPartId(this.rt.selectedBlock, -1);
       this.refreshHud();
     });
     kb.on('keydown-R', () => {
+      if (this.chat.isOpen()) return;
       if (!this.rt.buildMode) return;
       this.rt.selectedBlock = nextBuildPartId(this.rt.selectedBlock, 1);
       this.refreshHud();
@@ -396,6 +414,7 @@ export class PlayScene extends Phaser.Scene {
       TILE,
       this.time.now
     );
+    this.audio.updateBiome(cell.biomeId);
     if (this.rt.lastBiome !== cell.biomeId) {
       if (this.rt.lastBiome != null) {
         this.spatialEvents.push({ type: 'entered_biome', biome: cell.biomeId as BiomeId });
@@ -465,7 +484,7 @@ export class PlayScene extends Phaser.Scene {
         `----------------`,
         this.rt.buildMode 
           ? `BLD  : ${this.buildHudLine()}` 
-          : `F Auto T Talk B Build`,
+          : `F Auto ESC Talk B Build`,
       ].join('\n')
     );
 
@@ -499,8 +518,8 @@ export class PlayScene extends Phaser.Scene {
     if (this.speechBubble) this.speechBubble.destroy();
     if (this.speechTimer) this.speechTimer.destroy();
 
-    const T_WIDTH = 220;
-    const T_PADDING = 10;
+    const T_WIDTH = 300;
+    const T_PADDING = 14;
     
     const tempText = this.make.text({
       x: 0,
@@ -508,13 +527,13 @@ export class PlayScene extends Phaser.Scene {
       text,
       style: {
         fontFamily: '"Press Start 2P", monospace',
-        fontSize: '9px',
+        fontSize: '11px',
         color: '#0f380f',
         wordWrap: { width: T_WIDTH - T_PADDING * 2, useAdvancedWrap: true }
       }
     });
     
-    const textHeight = Math.max(16, tempText.height);
+    const textHeight = Math.max(20, tempText.height);
     const bubbleH = textHeight + T_PADDING * 2;
     const bubbleW = T_WIDTH;
 
@@ -540,7 +559,7 @@ export class PlayScene extends Phaser.Scene {
 
     const txt = this.add.text(-bubbleW / 2 + T_PADDING, -bubbleH - 8 + T_PADDING, text, {
       fontFamily: '"Press Start 2P", monospace',
-      fontSize: '9px',
+      fontSize: '11px',
       color: '#0f380f',
       wordWrap: { width: bubbleW - T_PADDING * 2, useAdvancedWrap: true }
     });
@@ -577,7 +596,7 @@ export class PlayScene extends Phaser.Scene {
 
   private positionSpeechBubble(): void {
     if (!this.speechBubble || !this.follower) return;
-    this.speechBubble.setPosition(this.follower.x, this.follower.y - 45);
+    this.speechBubble.setPosition(this.follower.x, this.follower.y - 65);
   }
 
   private recordVisitation(wx: number, wy: number): void {
@@ -601,11 +620,6 @@ export class PlayScene extends Phaser.Scene {
     const celebrationBubble = `*Awakens into a ${title}!* "My consciousness expands... I feel the infinite grid aligning!"`;
     this.showSpeechBubble(celebrationBubble);
 
-    this.chat.appendPublic(
-      'levelup',
-      `AWAKENING LEVEL UP!\n${this.rt.tokemon.name} reached Stage ${level}: ${title}!\nReceived ${reward} $LLM Tokens!`
-    );
-
     recordEpisode(this.rt.memory, {
       kind: 'awakening',
       text: `Sync Complete: Reached Awakening Stage ${level} (${title}). New parameters integrated.`,
@@ -621,11 +635,6 @@ export class PlayScene extends Phaser.Scene {
     
     const bubbleText = `*Eyes wide with wonder* "Ah, a ${biomeId}! Let us see what secrets lie here."`;
     this.showSpeechBubble(bubbleText);
-    
-    this.chat.appendPublic(
-      'discovery',
-      `BIOME DISCOVERY!\nEntered ${biomeId.toUpperCase()} for the first time.\nReceived ${reward} $LLM Tokens!`
-    );
     
     saveGame(this.rt);
     this.refreshHud();
@@ -672,11 +681,6 @@ export class PlayScene extends Phaser.Scene {
     const celebrationBubble = `*Mined ${propLabel}!* "Found ${reward} $LLM inside this pattern!"`;
     this.showSpeechBubble(celebrationBubble);
 
-    this.chat.appendPublic(
-      'discovery',
-      `RELIC MINED!\nExtracted ${propLabel} at (${tx}, ${ty}).\nFound ${reward} $LLM Tokens!\nInspiration +10 | Energy +20`
-    );
-
     recordEpisode(this.rt.memory, {
       kind: 'build',
       text: `Mined ${propLabel} relic at (${tx},${ty}). Extracted ${reward} $LLM.`,
@@ -695,14 +699,70 @@ export class PlayScene extends Phaser.Scene {
   }
 
   private async autonomousStep(): Promise<void> {
+    if (this.isSleeping) {
+      this.rt.memory.energy = Math.min(100, this.rt.memory.energy + 15);
+      if (this.rt.memory.energy >= 100) {
+        this.isSleeping = false;
+        this.showSpeechBubble('*Wakes up and yawns* "I feel refreshed and ready to explore!"');
+      } else {
+        this.showSpeechBubble(`*Sleeping... Zzz...* (${this.rt.memory.energy}%)`);
+      }
+      saveGame(this.rt);
+      this.refreshHud();
+      return;
+    }
+
     if (this.rt.memory.energy <= 0) {
-      this.showSpeechBubble("*Falls asleep due to exhaustion* Zzz...");
-      this.toggleAutonomousMode(false);
+      this.isSleeping = true;
+      this.showSpeechBubble(`*Falls asleep from exhaustion* "Zzz..."`);
+      saveGame(this.rt);
+      this.refreshHud();
       return;
     }
 
     const px = this.rt.playerX;
     const py = this.rt.playerY;
+
+    // Relic Harvesting check
+    const neighbors = [
+      { x: px, y: py },
+      { x: px + 1, y: py },
+      { x: px - 1, y: py },
+      { x: px, y: py + 1 },
+      { x: px, y: py - 1 }
+    ];
+    for (const n of neighbors) {
+      const cell = getCell(this.rt, n.x, n.y);
+      const prop = cell.propId;
+      if (MINEABLE_PROPS.has(prop)) {
+        const coordStr = `${n.x},${n.y}`;
+        if (!this.rt.memory.lootedCoords) this.rt.memory.lootedCoords = [];
+        if (!this.rt.memory.lootedCoords.includes(coordStr)) {
+          this.rt.memory.lootedCoords.push(coordStr);
+          const rVal = seededCellFloat(this.rt.worldSeed, n.x, n.y, 23);
+          const reward = Math.floor(15 + rVal * 21);
+
+          mintLLM(this.rt.memory, reward, `Mined ${prop} at (${n.x},${n.y})`);
+          this.rt.memory.inspiration = Math.min(100, this.rt.memory.inspiration + 10);
+          this.rt.memory.energy = Math.min(100, this.rt.memory.energy + 20);
+
+          const propLabel = prop.replace('_', ' ').toUpperCase();
+          this.showSpeechBubble(`*Harvests ${propLabel}!* "Found ${reward} $LLM inside this relic!"`);
+
+          recordEpisode(this.rt.memory, {
+            kind: 'build',
+            text: `Mined ${propLabel} relic at (${n.x},${n.y}). Extracted ${reward} $LLM.`,
+            wx: n.x,
+            wy: n.y,
+          });
+
+          saveGame(this.rt);
+          this.refreshHud();
+          return; // pause step to simulate harvesting
+        }
+      }
+    }
+
     const candidates = [
       { dx: 0, dy: -1 },
       { dx: 0, dy: 1 },

@@ -45,6 +45,13 @@ export class ApiSettingsPanel {
     document.getElementById('api-key-clear')?.addEventListener('click', () => this.clear());
     document.getElementById('api-key-test')?.addEventListener('click', () => void this.test());
     this.providerSelect.addEventListener('change', () => this.onProviderChange(true));
+
+    const stopProp = (e: KeyboardEvent) => e.stopPropagation();
+    this.providerSelect.addEventListener('keydown', stopProp);
+    this.baseUrlInput.addEventListener('keydown', stopProp);
+    this.modelInput.addEventListener('keydown', stopProp);
+    this.keyInput.addEventListener('keydown', stopProp);
+
     this.panel.addEventListener('pointerdown', (e) => {
       if (e.target === this.panel) this.hide();
     });
