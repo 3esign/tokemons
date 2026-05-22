@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="description" content="Tokemons - procedural Game Boy world with AI companions" />
+    <title>Tokemons</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
+      rel="stylesheet"
+    />    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 100vw;
+        height: 100dvh;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #0f380f;
+        font-family: 'Press Start 2P', monospace;
+      }
+      #game-root {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100dvh;
+        overflow: hidden;
+        background: #0f380f;
+      }
+      #game-root canvas {
+        display: block;
+        width: 100vw !important;
+        height: 100dvh !important;
+      }
+      #ui-layer {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 100;
+      }
+      #ui-layer * {
+        pointer-events: auto;
+      }
+
+      /* Custom retro pixel scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0f380f;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #306230;
+        border: 2px solid #0f380f;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #9bbc0f;
+      }
+
+      /* Tactile Retro Buttons */
+      button {
+        font-family: inherit;
+        border: 3px solid #0f380f !important;
+        box-shadow: 3px 3px 0 #0f380f;
+        transition: transform 0.05s ease, box-shadow 0.05s ease;
+        cursor: pointer;
+        image-rendering: pixelated;
+        text-transform: uppercase;
+        outline: none;
+      }
+      button:hover {
+        background: #e8f0d0 !important;
+        color: #0f380f !important;
+      }
+      button:active {
+        transform: translate(2px, 2px);
+        box-shadow: 1px 1px 0 #0f380f;
+      }
+
+      #api-settings-open {
+        position: fixed;
+        top: 8px;
+        right: 8px;
+        font-size: 9px;
+        padding: 8px 12px;
+        background: #9bbc0f;
+        color: #0f380f;
+        z-index: 110;
+      }
+      #reset-game {
+        position: fixed;
+        top: 44px;
+        right: 8px;
+        font-size: 9px;
+        padding: 8px 12px;
+        background: #306230;
+        color: #e8f0d0;
+        z-index: 110;
+      }
+      #download-report {
+        position: fixed;
+        top: 80px;
+        right: 8px;
+        font-size: 8px;
+        padding: 8px 12px;
+        background: #8bac0f;
+        color: #0f380f;
+        z-index: 110;
+      }
+
+      #build-hint {
+        position: fixed;
+        bottom: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 8px;
+        color: #0f380f;
+        background: #e8f0d0;
+        padding: 10px 14px;
+        border: 3px solid #0f380f;
+        box-shadow: 4px 4px 0 #0f380f;
+        line-height: 1.4;
+      }
+      #build-hint.hidden {
+        display: none;
+      }
+
+      /* Double-bordered Retro Chat Panel */
+      #chat-panel {
+        display: none;
+        position: fixed;
+        right: 12px;
+        bottom: 12px;
+        width: min(420px, calc(100vw - 24px));
+        max-height: 60vh;
+        background: #0f380f;
+        border: 4px solid #0f380f;
+        outline: 3px solid #9bbc0f;
+        outline-offset: -7px;
+        box-shadow: 6px 6px 0 #306230;
+        flex-direction: column;
+        padding: 6px;
+      }
+      #chat-panel.open {
+        display: flex;
+      }
+      #chat-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        font-size: 10px;
+        background: #9bbc0f;
+        color: #0f380f;
+        border: 3px solid #0f380f;
+        margin-bottom: 4px;
+      }
+      #chat-close {
+        background: #306230;
+        color: #e8f0d0;
+        font-size: 8px;
+        padding: 4px 8px;
+        box-shadow: 1px 1px 0 #0f380f;
+      }
+      #chat-close:active {
+        transform: translate(1px, 1px);
+        box-shadow: 0 0 0 #0f380f;
+      }
+      #chat-log {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+        font-size: 10px;
+        line-height: 1.6;
+        background: #0f380f;
+        color: #e8f0d0;
+        border: 3px solid #0f380f;
+        min-height: 180px;
+        max-height: 40vh;
+        margin-bottom: 4px;
+      }
+      #memory-hint {
+        position: fixed;
+        top: 118px;
+        right: 8px;
+        font-size: 7px;
+        color: #9bbc0f;
+        pointer-events: none;
+        text-align: right;
+        line-height: 1.5;
+        text-shadow: 2px 2px 0 #0f380f;
+      }
+      .chat-user {
+        color: #e8f0d0;
+      }
+      .chat-assistant {
+        color: #9bbc0f;
+      }
+      .chat-system {
+        color: #306230;
+      }
+      .chat-discovery {
+        color: #e8f0d0;
+        background: #306230;
+        padding: 6px;
+        border: 2px dashed #9bbc0f;
+        margin: 6px 0;
+        font-size: 7px;
+        line-height: 1.4;
+        white-space: pre-line;
+      }
+      .chat-levelup {
+        color: #0f380f;
+        background: #9bbc0f;
+        padding: 8px;
+        border: 3px double #e8f0d0;
+        margin: 8px 0;
+        font-size: 8px;
+        line-height: 1.5;
+        text-align: center;
+        box-shadow: 3px 3px 0 #306230;
+        white-space: pre-line;
+      }
+      #chat-input-row {
+        display: flex;
+        gap: 6px;
+        padding: 2px;
+      }
+      #chat-input {
+        flex: 1;
+        background: #e8f0d0;
+        border: 3px solid #0f380f;
+        color: #0f380f;
+        font-family: inherit;
+        font-size: 11px;
+        padding: 10px;
+        outline: none;
+        box-shadow: inset 2px 2px 0px #306230;
+      }
+      #chat-send {
+        background: #9bbc0f;
+        color: #0f380f;
+        padding: 10px 16px;
+        font-size: 11px;
+      }
+
+      /* AI settings modal box styling */
+      #api-settings {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 56, 15, 0.95);
+        align-items: center;
+        justify-content: center;
+        z-index: 200;
+        backdrop-filter: blur(2px);
+        padding: 16px;
+      }
+      #api-settings.open {
+        display: flex;
+      }
+      #api-settings-box {
+        width: min(440px, calc(100vw - 32px));
+        max-height: calc(100dvh - 32px);
+        overflow-y: auto;
+        background: #0f380f;
+        border: 4px solid #0f380f;
+        outline: 3px solid #9bbc0f;
+        outline-offset: -8px;
+        box-shadow: 8px 8px 0 #306230;
+        padding: 20px;
+      }
+      #api-settings-box h2 {
+        font-size: 10px;
+        color: #e8f0d0;
+        margin-bottom: 10px;
+        text-align: center;
+        border-bottom: 3px solid #306230;
+        padding-bottom: 8px;
+      }
+      #api-settings-box p {
+        font-size: 7px;
+        color: #9bbc0f;
+        line-height: 1.6;
+        margin-bottom: 12px;
+        text-align: center;
+      }
+      .api-field {
+        margin-bottom: 10px;
+      }
+      .api-field label {
+        display: block;
+        font-size: 7px;
+        color: #9bbc0f;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+      }
+      .api-field input,
+      .api-field select {
+        width: 100%;
+        box-sizing: border-box;
+        background: #e8f0d0;
+        border: 3px solid #0f380f;
+        color: #0f380f;
+        font-family: inherit;
+        font-size: 8px;
+        padding: 8px;
+        outline: none;
+        box-shadow: inset 2px 2px 0px #306230;
+      }
+      #api-provider-hint {
+        font-size: 7px;
+        color: #e8f0d0;
+        margin-bottom: 10px;
+        line-height: 1.6;
+      }
+      #api-status {
+        font-size: 7px;
+        color: #9bbc0f;
+        margin-bottom: 12px;
+        min-height: 20px;
+        line-height: 1.6;
+        text-align: center;
+        border: 2px dashed #306230;
+        padding: 4px;
+      }
+      #api-status.connected {
+        color: #e8f0d0;
+        background: #306230;
+        border: 2px solid #9bbc0f;
+      }
+      .api-row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        justify-content: center;
+        position: sticky;
+        bottom: -20px;
+        background: #0f380f;
+        padding: 10px 0 0;
+      }
+      .api-row button {
+        font-size: 8px;
+        padding: 8px 12px;
+      }
+      #api-key-save {
+        background: #9bbc0f;
+        color: #0f380f;
+      }
+      #api-key-test {
+        background: #8bac0f;
+        color: #0f380f; /* custom tint */
+      }
+      #api-key-clear {
+        background: #306230;
+        color: #e8f0d0;
+      }
+      #api-settings-close {
+        background: #306230;
+        color: #e8f0d0;
+      }
+
+      /* Technical API Call Logs Panel */
+      #api-log-panel {
+        position: fixed;
+        left: 12px;
+        bottom: 12px;
+        width: min(320px, calc(100vw - 24px));
+        height: 220px;
+        background: #0f380f;
+        border: 4px solid #0f380f;
+        outline: 3px solid #306230;
+        outline-offset: -7px;
+        box-shadow: 6px 6px 0 #0f380f;
+        display: flex;
+        flex-direction: column;
+        padding: 6px;
+        z-index: 100;
+        transition: height 0.15s steps(4);
+      }
+      #api-log-panel.minimized {
+        height: 42px;
+      }
+      #api-log-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 8px;
+        font-size: 8px;
+        background: #306230;
+        color: #e8f0d0;
+        border: 3px solid #0f380f;
+        margin-bottom: 4px;
+        cursor: pointer;
+        user-select: none;
+      }
+      #api-log-minimize {
+        background: #0f380f;
+        color: #e8f0d0;
+        font-size: 7px;
+        padding: 1px 5px;
+        box-shadow: 1px 1px 0 #306230;
+        border: 2px solid #e8f0d0 !important;
+      }
+      .api-log-actions {
+        display: flex;
+        gap: 6px;
+        padding: 4px 2px 6px;
+      }
+      .api-log-actions button {
+        flex: 1;
+        font-size: 7px;
+        padding: 5px 6px;
+        background: #306230;
+        color: #e8f0d0;
+        box-shadow: 1px 1px 0 #0f380f;
+      }
+      #api-log-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 6px;
+        font-size: 7px;
+        line-height: 1.4;
+        background: #0f380f;
+        color: #9bbc0f;
+        border: 3px solid #0f380f;
+      }
+      #api-log-panel.minimized #api-log-content {
+        display: none;
+      }
+      #api-log-panel.minimized .api-log-actions {
+        display: none;
+      }
+      .api-log-empty {
+        color: #306230;
+        text-align: center;
+        padding-top: 40px;
+      }
+      .api-log-entry {
+        border-bottom: 1px dashed #306230;
+        padding: 5px 0;
+        word-break: break-all;
+        white-space: pre-wrap;
+        font-family: monospace;
+      }
+      .api-log-tx {
+        color: #e8f0d0;
+      }
+      .api-log-rx {
+        color: #9bbc0f;
+      }
+      .api-log-err {
+        color: #e8f0d0;
+        background: #306230;
+        padding: 3px 6px;
+        border-left: 3px solid #9bbc0f;
+        margin-top: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-root"></div>
+    <div id="ui-layer">
+      <button type="button" id="api-settings-open">API (P)</button>
+      <button type="button" id="reset-game">RESET</button>
+      <button type="button" id="download-report">REPORT</button>
+      <div id="api-settings">
+        <div id="api-settings-box">
+          <h2>AI PROVIDER</h2>
+          <p>Choose Ollama, LM Studio, OpenRouter, OpenAI, Groq, etc. Saved in this browser only.</p>
+          <div class="api-field">
+            <label for="api-provider">Provider</label>
+            <select id="api-provider"></select>
+          </div>
+          <div id="api-provider-hint"></div>
+          <div class="api-field">
+            <label for="api-base-url">Base URL</label>
+            <input id="api-base-url" type="text" spellcheck="false" />
+          </div>
+          <div class="api-field">
+            <label for="api-model">Model</label>
+            <input id="api-model" type="text" placeholder="model name" spellcheck="false" />
+          </div>
+          <div class="api-field" id="api-key-row">
+            <label for="api-key-input">API key</label>
+            <input
+              id="api-key-input"
+              type="password"
+              placeholder="sk-..."
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </div>
+          <div id="api-status">Not configured</div>
+          <div class="api-row">
+            <button type="button" id="api-key-save">SAVE</button>
+            <button type="button" id="api-key-test">TEST</button>
+            <button type="button" id="api-key-clear">CLEAR</button>
+            <button type="button" id="api-settings-close">CLOSE</button>
+          </div>
+        </div>
+      </div>
+      <div id="memory-hint">T = talk / P = AI provider / G = API log / memory grows as you walk</div>
+      <div id="build-hint" class="hidden">BUILD - 1-9 select / Q-R cycle / E or click place / DEL clear / B exit</div>
+      <div id="chat-panel">
+        <div id="chat-header">
+          <span>TOKEMON CHAT (T)</span>
+          <button type="button" id="chat-close">ESC</button>
+        </div>
+        <div id="chat-log"></div>
+        <div id="chat-input-row">
+          <input id="chat-input" type="text" placeholder="Talk to your Tokemon..." autocomplete="off" />
+          <button type="button" id="chat-send">SEND</button>
+        </div>
+      </div>
+      <!-- Retro diagnostic API log panel -->
+      <div id="api-log-panel" class="minimized">
+        <div id="api-log-header">
+          <span>API CALL LOGS</span>
+          <button type="button" id="api-log-minimize">OPEN</button>
+        </div>
+        <div class="api-log-actions">
+          <button type="button" id="api-log-download">DOWNLOAD</button>
+          <button type="button" id="api-log-clear">CLEAR</button>
+        </div>
+        <div id="api-log-content">
+          <div class="api-log-empty">No API calls recorded yet.</div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

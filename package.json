@@ -1,0 +1,29 @@
+{
+  "name": "tokemons",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Game Boy-style procedural world with AI Tokemons",
+  "author": "3esign",
+  "packageManager": "npm@10.8.2",
+  "workspaces": [
+    "packages/kernel",
+    "packages/tokemon-gen",
+    "packages/client"
+  ],
+  "scripts": {
+    "build": "npm run build:kernel && npm run build:tokemon-gen && npm run build:client",
+    "build:client": "npm run build -w @tokemons/client",
+    "build:kernel": "npm run build -w @tokemons/kernel",
+    "build:tokemon-gen": "npm run build -w @tokemons/tokemon-gen",
+    "ci": "npm test && npm run build",
+    "test": "npm run test -w @tokemons/kernel",
+    "dev": "npm run dev -w @tokemons/client",
+    "preview": "npm run preview -w @tokemons/client"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@vercel/node": "^3.2.0"
+  }
+}

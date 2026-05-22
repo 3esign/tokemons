@@ -1,0 +1,22 @@
+{
+  "name": "@tokemons/client",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tokemons/kernel": "0.0.1",
+    "@tokemons/tokemon-gen": "0.0.1",
+    "phaser": "^3.80.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.4.0"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "id": "world_biome_base",
+  "description": "Continent elevation + climate fields → biome classification",
+  "inputs": [{ "name": "worldSeed", "type": "u64" }],
+  "nodes": [
+    {
+      "id": "n_coord",
+      "type": "CellCoord",
+      "inputs": {}
+    },
+    {
+      "id": "n_elevation",
+      "type": "FBm",
+      "params": { "octaves": 5, "frequency": 0.008, "lacunarity": 2, "gain": 0.5 },
+      "inputs": {
+        "seed": { "literal": "worldSeed" },
+        "x": { "node": "n_coord", "port": "worldX" },
+        "y": { "node": "n_coord", "port": "worldY" }
+      }
+    },
+    {
+      "id": "n_moisture",
+      "type": "FBm",
+      "params": { "octaves": 4, "frequency": 0.012, "offsetX": 999 },
+      "inputs": {
+        "seed": { "literal": "worldSeed" },
+        "x": { "node": "n_coord", "port": "worldX" },
+        "y": { "node": "n_coord", "port": "worldY" }
+      }
+    },
+    {
+      "id": "n_biome",
+      "type": "BiomeClassifier",
+      "inputs": {
+        "elevation": { "node": "n_elevation", "port": "out" },
+        "moisture": { "node": "n_moisture", "port": "out" },
+        "temperature": { "node": "n_temperature", "port": "out" }
+      }
+    }
+  ],
+  "outputs": [
+    { "name": "biomeId", "from": "n_biome", "port": "biomeId" },
+    { "name": "elevation", "from": "n_elevation", "port": "out" }
+  ]
+}
