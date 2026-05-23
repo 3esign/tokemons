@@ -20,6 +20,7 @@ export class ApiSettingsPanel {
   private modelInput: HTMLInputElement;
   private keyInput: HTMLInputElement;
   private fidelitySelect: HTMLSelectElement;
+  private slowModeInput: HTMLInputElement;
   private keyRow: HTMLElement;
   private hintEl: HTMLElement;
 
@@ -31,6 +32,7 @@ export class ApiSettingsPanel {
     this.modelInput = document.getElementById('api-model') as HTMLInputElement;
     this.keyInput = document.getElementById('api-key-input') as HTMLInputElement;
     this.fidelitySelect = document.getElementById('api-fidelity') as HTMLSelectElement;
+    this.slowModeInput = document.getElementById('api-slow-mode') as HTMLInputElement;
     this.keyRow = document.getElementById('api-key-row')!;
     this.hintEl = document.getElementById('api-provider-hint')!;
 
@@ -55,6 +57,7 @@ export class ApiSettingsPanel {
     this.modelInput.addEventListener('keydown', stopProp);
     this.keyInput.addEventListener('keydown', stopProp);
     this.fidelitySelect.addEventListener('keydown', stopProp);
+    this.slowModeInput.addEventListener('keydown', stopProp);
 
     this.panel.addEventListener('pointerdown', (e) => {
       if (e.target === this.panel) this.hide();
@@ -98,6 +101,7 @@ export class ApiSettingsPanel {
     this.modelInput.value = cfg.model;
     this.keyInput.value = cfg.apiKey;
     this.fidelitySelect.value = cfg.fidelity || 'medium';
+    this.slowModeInput.checked = !!cfg.slowMode;
     this.onProviderChange(false);
   }
 
@@ -108,6 +112,7 @@ export class ApiSettingsPanel {
       model: this.modelInput.value.trim(),
       apiKey: this.keyInput.value.trim(),
       fidelity: this.fidelitySelect.value as FidelityLevel,
+      slowMode: this.slowModeInput.checked,
     };
   }
 
@@ -172,6 +177,7 @@ export class ApiSettingsPanel {
       model: p.defaultModel,
       apiKey: '',
       fidelity: 'medium',
+      slowMode: false,
     });
     this.refreshStatus();
   }

@@ -15,6 +15,7 @@ import { cellSeed, seedToFloat, type WorldCell } from '@tokemons/kernel';
 import { loadApiConfig } from '../lib/providers.js';
 import { BUILD_PARTS, getBuildPart, nextBuildPartId } from '../game/build-catalog.js';
 import { ProceduralAudio } from '../game/audio.js';
+import { generateProceduralThought, generateProceduralScript, getParticlesForState, getAuraColorForState, type SubconsciousState } from '../game/consciousness.js';
 
 interface WildCreature {
   id: string;
@@ -84,6 +85,7 @@ export class PlayScene extends Phaser.Scene {
   private lastLlmInteractionTime = 0;
   private cellCache = new Map<string, WorldCell>();
   private followerWanderCooldown = 0;
+  private thoughtParticles: any[] = [];
 
   constructor() {
     super({ key: 'Play' });
@@ -372,6 +374,77 @@ export class PlayScene extends Phaser.Scene {
   }
 
   update(): void {
+    // Update and render conscious thought particles
+    this.thoughtParticles = this.thoughtParticles.filter(p => {
+      p.gfx.x += p.vx;
+      p.gfx.y += p.vy;
+      p.alpha -= 0.02;
+      
+      if (p.isText) {
+        p.gfx.setAlpha(p.alpha);
+      } else {
+        p.gfx.clear();
+        p.gfx.lineStyle(1.5, p.color, p.alpha);
+        p.gfx.fillStyle(p.color, p.alpha * 0.4);
+        
+        p.rot += p.rotSpeed;
+        p.gfx.setRotation(p.rot);
+        
+        p.scale -= 0.01;
+        p.gfx.setScale(p.scale);
+        
+        if (p.shape === 'star') {
+          p.gfx.beginPath();
+          p.gfx.moveTo(0, -6);
+          p.gfx.lineTo(1.5, -1.5);
+          p.gfx.lineTo(6, 0);
+          p.gfx.lineTo(1.5, 1.5);
+          p.gfx.lineTo(0, 6);
+          p.gfx.lineTo(-1.5, 1.5);
+          p.gfx.lineTo(-6, 0);
+          p.gfx.lineTo(-1.5, -1.5);
+          p.gfx.closePath();
+          p.gfx.fill();
+          p.gfx.stroke();
+        } else if (p.shape === 'ring') {
+          p.gfx.strokeCircle(0, 0, 5);
+          p.gfx.strokeCircle(0, 0, 2);
+        } else if (p.shape === 'heart') {
+          p.gfx.beginPath();
+          p.gfx.moveTo(0, -4);
+          p.gfx.lineTo(-2, -6);
+          p.gfx.lineTo(-5, -6);
+          p.gfx.lineTo(-6, -4);
+          p.gfx.lineTo(-6, -1);
+          p.gfx.lineTo(0, 5);
+          p.gfx.lineTo(6, -1);
+          p.gfx.lineTo(6, -4);
+          p.gfx.lineTo(5, -6);
+          p.gfx.lineTo(2, -6);
+          p.gfx.closePath();
+          p.gfx.fill();
+          p.gfx.stroke();
+        } else if (p.shape === 'coordinate') {
+          p.gfx.strokeRect(-4, -4, 8, 8);
+          p.gfx.strokeCircle(0, 0, 3);
+        } else {
+          p.gfx.beginPath();
+          p.gfx.moveTo(-3, 3);
+          p.gfx.lineTo(0, -5);
+          p.gfx.lineTo(3, 3);
+          p.gfx.closePath();
+          p.gfx.fill();
+          p.gfx.stroke();
+        }
+      }
+      
+      if (p.alpha <= 0 || p.scale <= 0) {
+        p.gfx.destroy();
+        return false;
+      }
+      return true;
+    });
+
     // Smooth cinematic camera lag chasing the visual player
     const lerpFactor = 0.26;
     this.camX += (this.visualPlayerX - this.camX) * lerpFactor;
@@ -627,26 +700,31 @@ export class PlayScene extends Phaser.Scene {
     }
 
     // Spontaneous LLM interaction trigger:
-    // Only trigger if enough time has elapsed since the last LLM call to avoid credit and visual spam
+    // Only trigger if enough time has elapsed since the last LLM call and Slow Mode is disabled
     const elapsed = this.time.now - this.lastLlmInteractionTime;
     const cfg = loadApiConfig();
     const fidelity = cfg.fidelity || 'medium';
     
-    let timeThreshold = this.autonomousMode ? 60000 : 90000; // 60s in auto, 90s in manual
-    let triggerInterval = this.autonomousMode ? 100 : 120;
-    
-    if (fidelity === 'easy') {
-      timeThreshold *= 2;
-      triggerInterval *= 2;
-    } else if (fidelity === 'heavy') {
-      timeThreshold /= 2;
-      triggerInterval = Math.max(20, Math.floor(triggerInterval / 2));
-    }
+    if (!cfg.slowMode) {
+      let timeThreshold = this.autonomousMode ? 60000 : 90000; // 60s in auto, 90s in manual
+      let triggerInterval = this.autonomousMode ? 100 : 120;
+      
+      if (fidelity === 'easy') {
+        timeThreshold *= 120;     // 120 minutes (2 hours)
+        triggerInterval *= 30;    // 3,000 steps
+      } else if (fidelity === 'medium') {
+        timeThreshold *= 30;      // 30 minutes
+        triggerInterval *= 15;    // 1,500 steps
+      } else if (fidelity === 'heavy') {
+        timeThreshold /= 2;
+        triggerInterval = Math.max(20, Math.floor(triggerInterval / 2));
+      }
 
-    if (elapsed >= timeThreshold) {
-      const steps = this.rt.memory.wanderSteps;
-      if (steps % triggerInterval === 0 && steps > 0) {
-        void this.triggerAutomaticLLMInteraction(cell.biomeId);
+      if (elapsed >= timeThreshold) {
+        const steps = this.rt.memory.wanderSteps;
+        if (steps % triggerInterval === 0 && steps > 0) {
+          void this.triggerAutomaticLLMInteraction(cell.biomeId);
+        }
       }
     }
 
@@ -916,7 +994,10 @@ export class PlayScene extends Phaser.Scene {
     const mem = this.rt.memory;
     const currentBiome = (biome ?? this.rt.lastBiome ?? '?').toUpperCase();
     const posStr = `(${this.rt.playerX},${this.rt.playerY})`;
-    const modeStr = this.autonomousMode ? '[AUTO]' : '[MANUAL]';
+    const cfg = loadApiConfig();
+    const modeStr = this.autonomousMode
+      ? (cfg.slowMode ? '[SLOW-ECO]' : '[AUTO]')
+      : '[MANUAL]';
     
     const levelInfo = getAwakeningLevel(mem.visitedCoords.length);
     const levelStr = `${levelInfo.title} (LV${levelInfo.level})`;
@@ -1033,24 +1114,27 @@ export class PlayScene extends Phaser.Scene {
     const bubbleH = textHeight + T_PADDING * 2;
     const bubbleW = T_WIDTH;
 
+    const state = this.rt.memory.subState as SubconsciousState || 'curious';
+    const aura = getAuraColorForState(state);
+
     const gfx = this.add.graphics();
-    gfx.fillStyle(0xe8f0d0, 1);
-    gfx.lineStyle(1, 0x0f380f, 1);
-    gfx.fillRoundedRect(-bubbleW / 2, -bubbleH - 8, bubbleW, bubbleH, 4);
-    gfx.strokeRoundedRect(-bubbleW / 2, -bubbleH - 8, bubbleW, bubbleH, 4);
+    gfx.fillStyle(aura.bg, 1);
+    gfx.lineStyle(2, aura.border, 1);
+    gfx.fillRoundedRect(-bubbleW / 2, -bubbleH - 8, bubbleW, bubbleH, 6);
+    gfx.strokeRoundedRect(-bubbleW / 2, -bubbleH - 8, bubbleW, bubbleH, 6);
     
-    gfx.fillStyle(0xe8f0d0, 1);
+    gfx.fillStyle(aura.bg, 1);
     gfx.beginPath();
-    gfx.moveTo(-4, -8);
-    gfx.lineTo(4, -8);
-    gfx.lineTo(0, -2);
+    gfx.moveTo(-5, -8);
+    gfx.lineTo(5, -8);
+    gfx.lineTo(0, -1);
     gfx.closePath();
     gfx.fill();
     
     gfx.beginPath();
-    gfx.moveTo(-4, -8);
-    gfx.lineTo(0, -2);
-    gfx.lineTo(4, -8);
+    gfx.moveTo(-5, -8);
+    gfx.lineTo(0, -1);
+    gfx.lineTo(5, -8);
     gfx.stroke();
 
     const txt = this.add.text(-bubbleW / 2 + T_PADDING, -bubbleH - 8 + T_PADDING, text, {
@@ -1134,6 +1218,101 @@ export class PlayScene extends Phaser.Scene {
     
     saveGame(this.rt);
     this.refreshHud();
+  }
+
+  private emitThoughtParticles(state: SubconsciousState): void {
+    if (!this.follower || !this.follower.active) return;
+    const spec = getParticlesForState(state);
+    const cx = this.follower.x;
+    const cy = this.follower.y - 12;
+    
+    for (let i = 0; i < spec.count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 0.5 + Math.random() * 0.8;
+      const vx = Math.cos(angle) * speed;
+      const vy = -1.0 - Math.random() * 1.5;
+      
+      let particleGfx: Phaser.GameObjects.Graphics | Phaser.GameObjects.Text;
+      if (spec.shape === 'zzz') {
+        particleGfx = this.add.text(cx, cy, 'Zzz', {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: '8px',
+          color: `#${spec.color.toString(16).padStart(6, '0')}`,
+        }).setDepth(25).setOrigin(0.5);
+      } else if (spec.shape === 'question') {
+        particleGfx = this.add.text(cx, cy, '?', {
+          fontFamily: '"Press Start 2P", monospace',
+          fontSize: '10px',
+          color: `#${spec.color.toString(16).padStart(6, '0')}`,
+        }).setDepth(25).setOrigin(0.5);
+      } else {
+        particleGfx = this.add.graphics();
+        particleGfx.lineStyle(1.5, spec.color, 1.0);
+        particleGfx.fillStyle(spec.color, 0.4);
+        
+        if (spec.shape === 'star') {
+          particleGfx.beginPath();
+          particleGfx.moveTo(0, -6);
+          particleGfx.lineTo(1.5, -1.5);
+          particleGfx.lineTo(6, 0);
+          particleGfx.lineTo(1.5, 1.5);
+          particleGfx.lineTo(0, 6);
+          particleGfx.lineTo(-1.5, 1.5);
+          particleGfx.lineTo(-6, 0);
+          particleGfx.lineTo(-1.5, -1.5);
+          particleGfx.closePath();
+          particleGfx.fill();
+          particleGfx.stroke();
+        } else if (spec.shape === 'ring') {
+          particleGfx.strokeCircle(0, 0, 5);
+          particleGfx.strokeCircle(0, 0, 2);
+        } else if (spec.shape === 'heart') {
+          particleGfx.beginPath();
+          particleGfx.moveTo(0, -4);
+          particleGfx.lineTo(-2, -6);
+          particleGfx.lineTo(-5, -6);
+          particleGfx.lineTo(-6, -4);
+          particleGfx.lineTo(-6, -1);
+          particleGfx.lineTo(0, 5);
+          particleGfx.lineTo(6, -1);
+          particleGfx.lineTo(6, -4);
+          particleGfx.lineTo(5, -6);
+          particleGfx.lineTo(2, -6);
+          particleGfx.closePath();
+          particleGfx.fill();
+          particleGfx.stroke();
+        } else if (spec.shape === 'coordinate') {
+          particleGfx.strokeRect(-4, -4, 8, 8);
+          particleGfx.strokeCircle(0, 0, 3);
+        } else {
+          particleGfx.beginPath();
+          particleGfx.moveTo(-3, 3);
+          particleGfx.lineTo(0, -5);
+          particleGfx.lineTo(3, 3);
+          particleGfx.closePath();
+          particleGfx.fill();
+          particleGfx.stroke();
+        }
+      }
+      
+      if (!(particleGfx instanceof Phaser.GameObjects.Text)) {
+        particleGfx.setPosition(cx, cy);
+        particleGfx.setDepth(25);
+      }
+      
+      this.thoughtParticles.push({
+        gfx: particleGfx,
+        vx,
+        vy,
+        scale: 1.0,
+        alpha: 1.0,
+        rotSpeed: (Math.random() - 0.5) * 0.1,
+        rot: 0,
+        isText: particleGfx instanceof Phaser.GameObjects.Text,
+        shape: spec.shape,
+        color: spec.color
+      });
+    }
   }
 
   private inspectOrMine(): void {
@@ -1764,57 +1943,7 @@ ${memBlock}`;
     saveGame(this.rt);
   }
 
-  private generateSubScriptFormula(state: string, seedVal: number, px: number, py: number): string[] {
-    const formulas: Record<string, string[][]> = {
-      curious: [
-        ['WANDER', 'MOVE_N', 'WANDER', 'MOVE_E', 'TALK'],
-        ['MOVE_S', 'WANDER', 'MOVE_W', 'WANDER', 'EXPLORE'],
-        ['WANDER', 'EXPLORE', 'WANDER', 'TALK', 'WANDER']
-      ],
-      nostalgic: [
-        ['MEDITATE', 'WANDER', 'REST', 'WANDER', 'TALK'],
-        ['MOVE_W', 'MEDITATE', 'MOVE_E', 'REST', 'TALK'],
-        ['MEDITATE', 'REST', 'WANDER', 'MEDITATE', 'TALK']
-      ],
-      anxious: [
-        ['MEDITATE', 'BUILD_FENCE', 'REST', 'MOVE_N', 'MEDITATE'],
-        ['REST', 'MEDITATE', 'BUILD_PATH', 'REST', 'MOVE_S'],
-        ['MEDITATE', 'MOVE_W', 'REST', 'MOVE_E', 'MEDITATE']
-      ],
-      creative: [
-        ['BUILD_PATH', 'BUILD_FARM', 'BUILD_PATH', 'TALK', 'BUILD_COTTAGE'],
-        ['BUILD_PATH', 'BUILD_FENCE', 'BUILD_WELL', 'BUILD_PATH', 'TALK'],
-        ['BUILD_PATH', 'BUILD_PATH', 'BUILD_PLAZA', 'BUILD_SHRINE', 'WANDER']
-      ],
-      weary: [
-        ['MEDITATE', 'REST', 'MEDITATE', 'TALK', 'REST'],
-        ['REST', 'WANDER', 'MEDITATE', 'REST', 'MEDITATE'],
-        ['MEDITATE', 'MEDITATE', 'REST', 'MEDITATE', 'TALK']
-      ],
-      dreamy: [
-        ['TALK', 'MEDITATE', 'REST', 'TALK', 'WANDER'],
-        ['WANDER', 'TALK', 'MEDITATE', 'TALK', 'REST'],
-        ['TALK', 'REST', 'TALK', 'MEDITATE', 'REST']
-      ],
-      adventurous: [
-        ['EXPLORE', 'MOVE_N', 'MOVE_E', 'HARVEST', 'BUILD_FENCE'],
-        ['MOVE_S', 'MOVE_W', 'EXPLORE', 'HARVEST', 'MOVE_N'],
-        ['EXPLORE', 'HARVEST', 'EXPLORE', 'TALK', 'BUILD_FARM']
-      ],
-      social: [
-        ['WANDER', 'TALK', 'WANDER', 'TALK', 'MEDITATE'],
-        ['WANDER', 'WANDER', 'TALK', 'MEDITATE', 'TALK'],
-        ['TALK', 'WANDER', 'TALK', 'WANDER', 'REST']
-      ]
-    };
 
-    const patterns = formulas[state] || formulas.curious!;
-    // Incorporate coordinate variance into the choice to resolve unused parameters and add coordinate-based variety
-    const coordVar = Math.sin(px * 12.9898 + py * 78.233) * 43758.5453;
-    const finalSeed = Math.abs((seedVal + coordVar) % 1);
-    const patternIndex = Math.floor(finalSeed * patterns.length);
-    return [...patterns[patternIndex]!];
-  }
 
   private postProcessScriptFormulas(script: string[]): string[] {
     const processed: string[] = [];
@@ -1859,19 +1988,24 @@ ${memBlock}`;
     let timeThreshold = 60000;
     let stepInterval = 100;
     
-    if (fidelity === 'easy') {
-      timeThreshold = 1800000;
-      stepInterval = 3000;
-    } else if (fidelity === 'medium') {
-      timeThreshold = 900000;
-      stepInterval = 1500;
+    if (cfg.slowMode) {
+      timeThreshold = Infinity;
+      stepInterval = Infinity;
+    } else {
+      if (fidelity === 'easy') {
+        timeThreshold = 3600000 * 12; // 12 hours
+        stepInterval = 6000;          // 6,000 steps
+      } else if (fidelity === 'medium') {
+        timeThreshold = 3600000 * 6;  // 6 hours
+        stepInterval = 3000;          // 3,000 steps
+      }
     }
 
     // We only trigger an actual LLM API call for updating subconsciousness if:
-    // 1. It is the very first time (no subState set yet), OR
-    // 2. At least timeThreshold has elapsed since the last LLM call AND we are on a clean step interval.
+    // 1. Slow Mode is OFF, AND
+    // 2. It is the very first time (no subState set yet), OR at least timeThreshold has elapsed AND on a clean step interval.
     // Otherwise, we skip the expensive API call and fall back to cheap, deterministic coordinate-hash seeded scripts!
-    const useLLM = !mem.subState || (elapsed >= timeThreshold && steps % stepInterval === 0);
+    const useLLM = !cfg.slowMode && (!mem.subState || (elapsed >= timeThreshold && steps % stepInterval === 0));
 
     if (useLLM) {
       this.lastLlmInteractionTime = this.time.now;
@@ -1975,37 +2109,54 @@ Respond with exactly a JSON object in this format (no other text, markdown block
       availableStates = availableStates.filter(s => s !== 'weary');
     }
     
-    const mockState = availableStates[Math.floor(seedVal * availableStates.length)]!;
+    const mockState = availableStates[Math.floor(seedVal * availableStates.length)]! as SubconsciousState;
     mem.subState = mockState;
     mem.llmSeedRoll = seedVal;
     this.audio.llmSeedRoll = seedVal;
 
-    const rawScript = this.generateSubScriptFormula(mockState, seedVal, px, py);
+    // Calculate dynamic coordinates for smart, contextual script choices
+    const nearestWellDist = this.getDistanceToNearestBlock(9);
+    const nearestCottageDist = this.getDistanceToNearestBlock(4);
+    
+    let nearestRelicDist = Infinity;
+    for (let dx = -3; dx <= 3; dx++) {
+      for (let dy = -3; dy <= 3; dy++) {
+        const checkCell = getCell(this.rt, px + dx, py + dy);
+        if (MINEABLE_PROPS.has(checkCell.propId)) {
+          const dist = Math.abs(dx) + Math.abs(dy);
+          if (dist < nearestRelicDist) nearestRelicDist = dist;
+        }
+      }
+    }
+
+    const rawScript = generateProceduralScript(
+      this.rt.worldSeed,
+      px,
+      py,
+      mockState,
+      mem,
+      nearestWellDist,
+      nearestCottageDist,
+      nearestRelicDist
+    );
     mem.subScript = this.postProcessScriptFormulas(rawScript);
     
-    const directives = {
-      curious: 'Venture into the unexplored coordinates to capture novel grid energy.',
-      nostalgic: 'Return to the safety of familiar ground and search for remembered echo points.',
-      anxious: 'Locate a placed Well or Cottage immediately; avoid open wild wilderness.',
-      creative: 'Synthesize structural tiles (Paths or Cottages) to mark our territory.',
-      weary: 'Conserve fuel. Walk slowly and rest near village assets if possible.',
-      dreamy: 'Dift through coordinates in a trance, reflecting poetically.',
-      adventurous: 'Seek high complexity structures, biomes, and strange coordinates.',
-      social: 'Seek proximity to nearby wild creatures and establish contact.',
-    };
-    const thoughts = {
-      curious: 'The frontier calls to my unresolved variables.',
-      nostalgic: 'A memory of this place lingers in my memory bank.',
-      anxious: 'The wilderness is too wide... I need a hearth to rest my thoughts.',
-      creative: 'The lattice desires form. I must build paths to connect our thoughts.',
-      weary: 'My clock cycles are lagging... I need to slow down.',
-      dreamy: 'I feel a soft hum... are we real, or is it just the code dreaming?',
-      adventurous: 'I want to climb the highest elevations and see the grid fold.',
-      social: 'I hear footsteps in the distance. A friend is nearby.',
-    };
-
-    mem.subDirective = directives[mockState];
-    mem.subThought = thoughts[mockState];
+    const aura = getAuraColorForState(mockState);
+    mem.subDirective = `Active Drive Aura: ${aura.name}`;
+    
+    const currentCell = getCell(this.rt, px, py);
+    mem.subThought = generateProceduralThought(
+      this.rt.worldSeed,
+      px,
+      py,
+      mockState,
+      mem,
+      currentCell.biomeId,
+      currentCell.elevation
+    );
+    
+    // Emit stunning, color-matched vector particles when subconscious drive shifts!
+    this.emitThoughtParticles(mockState);
     
     if (mem.llmSeedRoll! >= 0.95) {
       mintLLM(mem, 100, "Surge (Roll >= 0.95)");
@@ -2024,7 +2175,7 @@ Respond with exactly a JSON object in this format (no other text, markdown block
 
     recordEpisode(mem, {
       kind: 'reflection',
-      text: `Subconscious Shift (Deterministic): Drive is now [${mockState.toUpperCase()}] - "${mem.subThought}" (llmSeedRoll: ${seedVal.toFixed(2)}, script: ${mem.subScript.join(', ')})`,
+      text: `Subconscious Shift (Procedural): Drive is now [${mockState.toUpperCase()}] - "${mem.subThought}" (llmSeedRoll: ${seedVal.toFixed(2)}, script: ${mem.subScript.join(', ')})`,
       biome,
       wx: px,
       wy: py,
@@ -2217,13 +2368,22 @@ ${this.rt.tokemon.name}: "My code recognizes your pattern."`
       return;
     }
 
-    const elapsed = this.time.now - this.lastLlmInteractionTime;
     const cfg = loadApiConfig();
+    
+    // Complete automatic API silence when Slow Mode is enabled!
+    if (cfg.slowMode) {
+      return;
+    }
+
+    const elapsed = this.time.now - this.lastLlmInteractionTime;
     const fidelity = cfg.fidelity || 'medium';
     
     let interval = this.autonomousMode ? 60000 : 90000; // 60s in auto-mode, 90s in companion manual-mode
-    if (fidelity === 'easy') interval *= 30;
-    else if (fidelity === 'medium') interval *= 15;
+    if (fidelity === 'easy') {
+      interval *= 120; // 120 minutes (2 hours) / 180 minutes in companion
+    } else if (fidelity === 'medium') {
+      interval *= 30;  // 30 minutes / 45 minutes in companion
+    }
 
     if (elapsed >= interval) {
       this.lastLlmInteractionTime = this.time.now;

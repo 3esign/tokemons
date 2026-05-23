@@ -28,6 +28,7 @@ export interface ApiConfig {
   model: string;
   apiKey: string;
   fidelity: FidelityLevel;
+  slowMode: boolean;
 }
 
 export const PROVIDER_PRESETS: ProviderPreset[] = [
@@ -127,6 +128,7 @@ export function loadApiConfig(): ApiConfig {
     if (raw) {
       const parsed = JSON.parse(raw) as ApiConfig;
       if (!parsed.fidelity) parsed.fidelity = 'medium';
+      if (parsed.slowMode === undefined) parsed.slowMode = false;
       return parsed;
     }
     const legacy = localStorage.getItem(LEGACY_KEY)?.trim();
@@ -137,6 +139,7 @@ export function loadApiConfig(): ApiConfig {
         model: 'openrouter/auto',
         apiKey: legacy,
         fidelity: 'medium',
+        slowMode: false,
       };
       saveApiConfig(cfg);
       return cfg;
@@ -151,6 +154,7 @@ export function loadApiConfig(): ApiConfig {
     model: p.defaultModel,
     apiKey: '',
     fidelity: 'medium',
+    slowMode: false,
   };
 }
 
