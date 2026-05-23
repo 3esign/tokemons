@@ -12,6 +12,15 @@ export type SubconsciousState =
   | 'adventurous'
   | 'social';
 
+/** 
+ * Architectural Epochs defining the primary driver of building logic 
+ * 19 layers are grouped into 3 epochs:
+ * - Survival (L1-6)
+ * - Social (L7-13) 
+ * - Cosmic (L14-19)
+ */
+export type IntelligenceEpoch = 'survival' | 'social' | 'cosmic';
+
 export interface ThoughtStateDetails {
   state: SubconsciousState;
   directive: string;
@@ -112,6 +121,12 @@ const THOUGHT_MATRICES: Record<SubconsciousState, string[]> = {
   ]
 };
 
+export function getIntelligenceEpoch(level: number): IntelligenceEpoch {
+  if (level < 25) return 'survival';
+  if (level < 60) return 'social';
+  return 'cosmic';
+}
+
 // Deterministic Poetic Thought generator
 export function generateProceduralThought(
   worldSeed: number,
@@ -157,6 +172,11 @@ export function generateProceduralThought(
       formatted += ` I am currently resonant with ${concepts[bestConceptIdx]}.`;
     }
   }
+  
+  const epoch = getIntelligenceEpoch(memory.evolutionLevel);
+  if (epoch === 'cosmic') {
+    formatted = `[TRANS TRANSCENDENCE] ${formatted} The lattice reveals its true topology.`;
+  }
 
   return `*${glyph}* "${formatted}"`;
 }
@@ -170,7 +190,9 @@ export function generateProceduralScript(
   memory: TokemonMemory,
   nearestWellDist: number,
   nearestCottageDist: number,
-  nearestRelicDist: number
+  nearestRelicDist: number,
+  nearestShrineDist: number,
+  nearestPathDist: number
 ): string[] {
   // Composes custom, cartoon-like sequences of actions
   const seedVal = seededCellFloat(worldSeed, wx, wy, 501 + memory.wanderSteps);
@@ -179,9 +201,16 @@ export function generateProceduralScript(
   const moveActions = ['MOVE_N', 'MOVE_S', 'MOVE_E', 'MOVE_W'];
 
   const script: string[] = [];
+  const epoch = getIntelligenceEpoch(memory.evolutionLevel);
 
-  // 1. High-priority survival checks
-  if (memory.energy < 20) {
+  // 1. High-priority survival checks (Epoch: Survival)
+  if (memory.energy < 30) {
+    // Gradient Seeking: move toward a well if visible
+    if (nearestWellDist > 0 && nearestWellDist < 10) {
+       script.push('EXPLORE'); // Let the pathfinding move toward the attractor
+       return script;
+    }
+    
     // Highly exhausted, force resting
     if (nearestCottageDist <= 3 || nearestWellDist <= 3) {
       script.push('REST', 'REST', 'MEDITATE');
@@ -196,26 +225,32 @@ export function generateProceduralScript(
     script.push('HARVEST');
   }
 
-  // 3. 99-Level Evolution Prioritization: BUILDING is essential
+  // 3. Epoch-Based Building Logic
   const evolutionWeight = memory.evolutionLevel / 100;
-  const shouldBuild = seedVal < (0.3 + evolutionWeight * 0.4); // Increases with level
+  const shouldBuild = seedVal < (0.35 + evolutionWeight * 0.45); 
 
-  if (shouldBuild && memory.llmBalance >= 10) {
-    // High level tokemons build more complex structures
-    if (memory.evolutionLevel > 50) {
+  if (shouldBuild && memory.llmBalance >= 5) {
+    if (epoch === 'cosmic' && memory.llmBalance >= 15) {
       const complexOptions = ['BUILD_HALL', 'BUILD_TOWER', 'BUILD_SHRINE', 'BUILD_PLAZA'];
       script.push(complexOptions[Math.floor(seedVal * complexOptions.length)]!);
-    } else if (memory.evolutionLevel > 25) {
-      const mediumOptions = ['BUILD_COTTAGE', 'BUILD_WELL', 'BUILD_FARM'];
+    } else if (epoch === 'social' && memory.llmBalance >= 10) {
+      const mediumOptions = ['BUILD_COTTAGE', 'BUILD_WELL', 'BUILD_FARM', 'BUILD_PATH', 'BUILD_PLAZA'];
       script.push(mediumOptions[Math.floor(seedVal * mediumOptions.length)]!);
     } else {
-      script.push('BUILD_PATH', 'BUILD_FENCE');
+      // Survival Epoch: Focus on essentials
+      const survivalOptions = ['BUILD_PATH', 'BUILD_WELL', 'BUILD_FARM', 'BUILD_FENCE'];
+      script.push(survivalOptions[Math.floor(seedVal * survivalOptions.length)]!);
     }
-    script.push('TALK'); // Reflect on the construction
+    script.push('TALK'); 
     return script;
   }
 
-  // 4. State-specific procedural behaviors
+  // 4. Gradient Seeking (Epoch: Social/Cosmic)
+  if (epoch === 'social' && nearestPathDist > 2 && nearestPathDist < 8) {
+      script.push('WANDER'); // Drift toward civilization
+  }
+
+  // 5. State-specific procedural behaviors
   switch (state) {
     case 'curious':
       script.push(

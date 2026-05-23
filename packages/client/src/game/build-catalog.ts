@@ -1,3 +1,5 @@
+export type AuraType = 'speed' | 'energy' | 'entropy' | 'radar' | 'mint' | 'resonance';
+
 export interface BuildPart {
   id: number;
   key: string;
@@ -5,18 +7,42 @@ export interface BuildPart {
   shortName: string;
   cost: number;
   walkable: boolean;
+  aura?: {
+    type: AuraType;
+    radius: number;
+    power: number; // multiplier or flat bonus
+    label: string;
+  };
 }
 
 export const BUILD_PARTS: BuildPart[] = [
-  { id: 1, key: 'path', name: 'Stone Path', shortName: 'PATH', cost: 1, walkable: true },
-  { id: 2, key: 'shrine', name: 'Memory Shrine', shortName: 'SHRINE', cost: 7, walkable: false },
-  { id: 3, key: 'plaza', name: 'Village Plaza', shortName: 'PLAZA', cost: 2, walkable: true },
+  { 
+    id: 1, key: 'path', name: 'Stone Path', shortName: 'PATH', cost: 1, walkable: true,
+    aura: { type: 'speed', radius: 0, power: 1.5, label: 'PATH FLOW' } // Only on the tile
+  },
+  { 
+    id: 2, key: 'shrine', name: 'Memory Shrine', shortName: 'SHRINE', cost: 7, walkable: false,
+    aura: { type: 'resonance', radius: 8, power: 2.0, label: 'COGNITIVE SYNC' }
+  },
+  { 
+    id: 3, key: 'plaza', name: 'Village Plaza', shortName: 'PLAZA', cost: 2, walkable: true,
+    aura: { type: 'mint', radius: 4, power: 1.0, label: 'TRADING HUB' }
+  },
   { id: 4, key: 'cottage', name: 'Cottage', shortName: 'COTTAGE', cost: 6, walkable: false },
   { id: 5, key: 'hall', name: 'Guild Hall', shortName: 'HALL', cost: 8, walkable: false },
-  { id: 6, key: 'tower', name: 'Watch Tower', shortName: 'TOWER', cost: 8, walkable: false },
-  { id: 7, key: 'farm', name: 'Sprout Farm', shortName: 'FARM', cost: 3, walkable: true },
+  { 
+    id: 6, key: 'tower', name: 'Watch Tower', shortName: 'TOWER', cost: 8, walkable: false,
+    aura: { type: 'radar', radius: 15, power: 1.0, label: 'SURVEILLANCE' }
+  },
+  { 
+    id: 7, key: 'farm', name: 'Sprout Farm', shortName: 'FARM', cost: 3, walkable: true,
+    aura: { type: 'energy', radius: 3, power: 2.0, label: 'NURTURE' }
+  },
   { id: 8, key: 'fence', name: 'Fence', shortName: 'FENCE', cost: 1, walkable: false },
-  { id: 9, key: 'well', name: 'Village Well', shortName: 'WELL', cost: 5, walkable: false },
+  { 
+    id: 9, key: 'well', name: 'Village Well', shortName: 'WELL', cost: 5, walkable: false,
+    aura: { type: 'energy', radius: 6, power: 5.0, label: 'VITALITY' }
+  },
 ];
 
 const BUILD_PART_BY_ID = new Map(BUILD_PARTS.map((part) => [part.id, part]));

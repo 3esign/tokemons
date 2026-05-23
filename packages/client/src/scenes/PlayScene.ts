@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+﻿import Phaser from 'phaser';
 import { bakeTokemonCanvas, ensureGenes } from '@tokemons/tokemon-gen';
 import type { BiomeId } from '@tokemons/kernel';
 import { GB } from '../palette.js';
@@ -656,7 +656,7 @@ export class PlayScene extends Phaser.Scene {
       this.player.setFlipX(false);
     }
 
-    this.moveLock = true;
+    this.moveLock = true;`r`n    this.applyAuraEffects(nx, ny);
     this.isSleeping = false; // Manual movement or triggered movement interrupts sleep
 
     this.rt.playerX = nx;
@@ -994,6 +994,49 @@ export class PlayScene extends Phaser.Scene {
     this.positionSpeechBubble();
   }
 
+  private applyAuraEffects(nx: number, ny: number): void {
+    this.activeAuras = [];
+    const mem = this.rt.memory;
+
+    // 1. Trail System
+    if (!this.autonomousMode) {
+      this.trainerTrail.push({ x: nx, y: ny });
+      if (this.trainerTrail.length > 50) this.trainerTrail.shift();
+    } else {
+      // Synchronicity Bonus
+      const onTrail = this.trainerTrail.some(t => t.x === nx && t.y === ny);
+      if (onTrail) {
+        mintLLM(mem, 1, 'Synchronicity Bonus');
+        this.activeAuras.push('SYNC FLOW (+1 $LLM)');
+      }
+    }
+
+    // 2. Building Auras
+    for (const [key, blockId] of this.rt.placedBlocks.entries()) {
+      const part = getBuildPart(blockId);
+      if (!part.aura) continue;
+
+      const [bx, by] = key.split(',').map(Number);
+      const dist = Math.abs(nx - bx!) + Math.abs(ny - by!);
+
+      if (dist <= part.aura.radius) {
+        this.activeAuras.push(part.aura.label);
+        
+        switch (part.aura.type) {
+          case 'energy':
+            mem.energy = Math.min(100, mem.energy + Math.round(part.aura.power));
+            break;
+          case 'entropy':
+            mem.entropy = Math.max(0, mem.entropy - part.aura.power);
+            break;
+          case 'resonance':
+            mem.creativity = Math.min(100, mem.creativity + part.aura.power);
+            break;
+        }
+      }
+    }
+  }
+
   private refreshHud(biome?: string): void {
     document.getElementById('auto-mode-indicator')!.classList.toggle('hidden', !this.autonomousMode);
     const mem = this.rt.memory;
@@ -1063,6 +1106,9 @@ export class PlayScene extends Phaser.Scene {
       lines.push(driveStr);
     }
 
+    if (this.activeAuras.length > 0) {
+      lines.push('AURAS: ' + this.activeAuras.join(', '));
+    }
     lines.push(
       `BIOME: ${currentBiome}`,
       `POS  : ${posStr} ${modeStr}`,
@@ -2226,8 +2272,7 @@ Respond with exactly a JSON object in this format (no other text, markdown block
       mem,
       nearestWellDist,
       nearestCottageDist,
-      nearestRelicDist
-    );
+      nearestRelicDist,`r`n      this.getDistanceToNearestBlock(2), // Shrine ID 2`r`n      this.getDistanceToNearestBlock(1)  // Path ID 1`r`n    );
     mem.subScript = this.postProcessScriptFormulas(rawScript);
     
     const aura = getAuraColorForState(mockState);
@@ -2708,6 +2753,12 @@ function bakeCreature(scene: Phaser.Scene, key: string, spriteData: string[]): v
   }
   canvas.refresh();
 }
+
+
+
+
+
+
 
 
 

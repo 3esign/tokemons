@@ -141,11 +141,11 @@ export class ChatPanel {
       )
       .join('; ');
 
-    const mem = this.rt.memory;
+    const mem = this.rt.memory; const builtCounts: Record<string, number> = {}; for (const bid of this.rt.placedBlocks.values()) { const k = getBuildPart(bid).key; builtCounts[k] = (builtCounts[k] || 0) + 1; } const buildingContext = Object.entries(builtCounts).map(([k, v]) => \"${v} ${k}s\").join(', '); const architectureAwareness = buildingContext ? \"I perceive our village growth: ${buildingContext}.\" : \"The world is currently wild and unformed.\";
     const dynamicSystem = getDynamicSystemPrompt(mem.evolutionLevel, mem.parametricConcepts, mem.hiddenLayers);
 
     return [
-      dynamicSystem,
+      dynamicSystem, architectureAwareness,
       formatMemoryForPrompt(
         this.rt.memory,
         this.rt.tokemon.name,
@@ -163,7 +163,7 @@ export class ChatPanel {
   }
 
   async runAwakeningIntro(biome: BiomeId): Promise<void> {
-    const mem = this.rt.memory;
+    const mem = this.rt.memory; const builtCounts: Record<string, number> = {}; for (const bid of this.rt.placedBlocks.values()) { const k = getBuildPart(bid).key; builtCounts[k] = (builtCounts[k] || 0) + 1; } const buildingContext = Object.entries(builtCounts).map(([k, v]) => \"${v} ${k}s\").join(', '); const architectureAwareness = buildingContext ? \"I perceive our village growth: ${buildingContext}.\" : \"The world is currently wild and unformed.\";
     const line = proceduralAwakeningLine(this.rt.tokemon.name, biome);
     this.appendPublic('assistant', line);
     if (this.onReply) this.onReply(line);
@@ -257,4 +257,5 @@ export class ChatPanel {
     }
   }
 }
+
 
