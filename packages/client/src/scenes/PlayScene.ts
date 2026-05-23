@@ -82,11 +82,10 @@ export class PlayScene extends Phaser.Scene {
   private wildCreatures: WildCreature[] = [];
   private lastEncounterTime = 0;
   private clickPath: { x: number; y: number }[] = [];
-  private lastLlmInteractionTime = 0;
   private cellCache = new Map<string, WorldCell>();
   private followerWanderCooldown = 0;
   private thoughtParticles: any[] = [];
-  private lastGlobalLlmTime = 0;
+  private lastGlobalLlmTime = -9999999;
 
   constructor() {
     super({ key: 'Play' });
@@ -111,7 +110,6 @@ export class PlayScene extends Phaser.Scene {
   private freshStart = false;
 
   create(): void {
-    this.lastLlmInteractionTime = this.time.now;
     this.cameras.main.setBackgroundColor(GB.darkest);
     this.worldGfx = this.add.graphics();
 
@@ -158,7 +156,7 @@ export class PlayScene extends Phaser.Scene {
 
     this.chat = new ChatPanel(this.rt, () => this.spatialEvents.recent(), (text) => {
       this.showSpeechBubble(text);
-      this.lastLlmInteractionTime = this.time.now;
+      this.lastGlobalLlmTime = this.time.now;
     });
     document.getElementById('build-hint')!.classList.toggle('hidden', !this.rt.buildMode);
 
@@ -700,34 +698,7 @@ export class PlayScene extends Phaser.Scene {
       this.rt.memory.creativity += (50 - this.rt.memory.creativity) * 0.1;
     }
 
-    // Spontaneous LLM interaction trigger:
-    // Only trigger if enough time has elapsed since the last LLM call and Slow Mode is disabled
-    const elapsed = this.time.now - this.lastLlmInteractionTime;
-    const cfg = loadApiConfig();
-    const fidelity = cfg.fidelity || 'medium';
-    
-    if (!cfg.slowMode && !this.isGlobalLlmCooldownActive()) {
-      let timeThreshold = this.autonomousMode ? 60000 : 90000; // 60s in auto, 90s in manual
-      let triggerInterval = this.autonomousMode ? 100 : 120;
-      
-      if (fidelity === 'easy') {
-        timeThreshold *= 120;     // 120 minutes (2 hours)
-        triggerInterval *= 30;    // 3,000 steps
-      } else if (fidelity === 'medium') {
-        timeThreshold *= 30;      // 30 minutes
-        triggerInterval *= 15;    // 1,500 steps
-      } else if (fidelity === 'heavy') {
-        timeThreshold /= 2;
-        triggerInterval = Math.max(20, Math.floor(triggerInterval / 2));
-      }
 
-      if (elapsed >= timeThreshold) {
-        const steps = this.rt.memory.wanderSteps;
-        if (steps % triggerInterval === 0 && steps > 0) {
-          void this.triggerAutomaticLLMInteraction(cell.biomeId);
-        }
-      }
-    }
 
     // steps milestone: every 30 steps
     if (this.rt.memory.wanderSteps % 30 === 0 && this.rt.memory.wanderSteps > 0) {
@@ -873,6 +844,36 @@ export class PlayScene extends Phaser.Scene {
     this.rt.placedBlocks.set(blockKey(wx, wy), part.id);
     this.spatialEvents.push({ type: 'player_placed_block', detail: part.key });
     
+    // Co-Construction Trainer-Tokemon Synergy Bonus
+    const fx = Math.round(this.followerX);
+    const fy = Math.round(this.followerY);
+    const distToFollower = Math.abs(wx - fx) + Math.abs(wy - fy);
+    if (distToFollower <= 4) {
+      mintLLM(this.rt.memory, 5, 'Co-Construction Trainer-Tokemon Synergy Bonus');
+      this.rt.memory.inspiration = Math.min(100, this.rt.memory.inspiration + 15);
+      this.rt.memory.creativity = Math.min(100, this.rt.memory.creativity + 10);
+      this.showSpeechBubble(`*Synergy Bonus!* "+5 $LLM Co-Construction grant!"`);
+    }
+
+    // Apply dynamic structural yield bonuses for manual placement
+    if (part.id === 4) {
+      mintLLM(this.rt.memory, 10, 'Manual Housing Yield');
+      this.showSpeechBubble(`*Housing Yield!* "Built a Cottage! +10 $LLM yield!"`);
+    } else if (part.id === 7) {
+      mintLLM(this.rt.memory, 5, 'Manual Crop Yield');
+      this.rt.memory.energy = Math.min(100, this.rt.memory.energy + 20);
+      this.showSpeechBubble(`*Harvest Yield!* "Built a Sprout Farm! +20 Energy, +5 $LLM!"`);
+    } else if (part.id === 9) {
+      this.rt.memory.energy = Math.min(100, this.rt.memory.energy + 10);
+      this.showSpeechBubble(`*Aquifer Yield!* "Built a Well! +10 Energy!"`);
+    } else if (part.id === 6) {
+      mintLLM(this.rt.memory, 15, 'Manual Watch Tower Scan');
+      this.showSpeechBubble(`*Scan Yield!* "Built a Watch Tower! Scanned horizon: +15 $LLM!"`);
+    } else if (part.id === 2) {
+      this.rt.memory.inspiration = 100;
+      this.showSpeechBubble(`*Shrine Alignment!* "Built a Shrine! Inspiration fully restored!"`);
+    }
+
     const isNear = this.isNearShrine();
     recordEpisode(this.rt.memory, {
       kind: 'build',
@@ -1244,12 +1245,14 @@ export class PlayScene extends Phaser.Scene {
       return true;
     }
     
-    let minGlobalCooldown = 60000; // 1 minute default
+    let minGlobalCooldown = 10000; // 10 seconds default for Heavy
     const fidelity = cfg.fidelity || 'medium';
     if (fidelity === 'easy') {
-      minGlobalCooldown = 900000; // 15 minutes strict global cooldown!
+      minGlobalCooldown = 90000; // 90 seconds for Low
     } else if (fidelity === 'medium') {
-      minGlobalCooldown = 450000; // 7.5 minutes strict global cooldown!
+      minGlobalCooldown = 30000; // 30 seconds for Medium
+    } else if (fidelity === 'heavy') {
+      minGlobalCooldown = 10000; // 10 seconds for Heavy
     }
     
     const elapsed = this.time.now - this.lastGlobalLlmTime;
@@ -1462,14 +1465,38 @@ export class PlayScene extends Phaser.Scene {
     const py = this.rt.playerY;
 
     // Creative block placement check
-    if (subState === 'creative' && this.rt.memory.llmBalance >= 12 && this.rt.memory.wanderSteps % 8 === 0) {
+    if (subState === 'creative' && this.rt.memory.llmBalance >= 6 && this.rt.memory.wanderSteps % 8 === 0) {
       const bx = px + (this.faceDx || 0);
       const by = py + (this.faceDy || 1);
       if (isWalkable(this.rt, bx, by) && !this.rt.placedBlocks.has(blockKey(bx, by))) {
-        const buildRoll = seedToFloat(this.rt.worldSeed ^ (this.rt.memory.wanderSteps * 33));
-        const blockId = buildRoll < 0.8 ? 1 : 4; // Path (1) or Cottage (4)
-        const part = getBuildPart(blockId);
+        // Intelligently plan contextual structure to build pro-actively
+        let blockId = 1; // Path default
+        const bal = this.rt.memory.llmBalance;
         
+        const cottageDist = this.getDistanceToNearestBlock(4); // Cottage ID 4
+        const wellDist = this.getDistanceToNearestBlock(9);    // Well ID 9
+        const farmDist = this.getDistanceToNearestBlock(7);    // Farm ID 7
+        const towerDist = this.getDistanceToNearestBlock(6);   // Watch Tower ID 6
+        const hallDist = this.getDistanceToNearestBlock(5);    // Guild Hall ID 5
+
+        const seedSelect = seedToFloat(this.rt.worldSeed ^ (this.rt.memory.wanderSteps * 33));
+        
+        const localCell = getCell(this.rt, px, py);
+        if (cottageDist > 5 && bal >= 6 && seedSelect < 0.25) {
+          blockId = 4; // Build Cottage
+        } else if (cottageDist <= 5 && farmDist > 5 && bal >= 3 && seedSelect < 0.45) {
+          blockId = 7; // Build Sprout Farm near Cottage
+        } else if (wellDist > 6 && bal >= 5 && seedSelect < 0.65) {
+          blockId = 9; // Build Well
+        } else if (towerDist > 8 && localCell.elevation > 0.4 && bal >= 8 && seedSelect < 0.8) {
+          blockId = 6; // Build Watch Tower on high grounds
+        } else if (hallDist > 10 && bal >= 8 && seedSelect < 0.9) {
+          blockId = 5; // Guild Hall
+        } else {
+          blockId = seedSelect < 0.4 ? 3 : (seedSelect < 0.7 ? 8 : 1); // Plaza, Fence, or Path
+        }
+
+        const part = getBuildPart(blockId);
         const distToGuild = this.getDistanceToNearestBlock(5);
         const actualCost = distToGuild <= 8 ? Math.max(1, part.cost - 1) : part.cost;
 
@@ -1484,7 +1511,27 @@ export class PlayScene extends Phaser.Scene {
             wy: by,
           }, this.isNearShrine());
 
-          this.showSpeechBubble(`*Feels a creative spark!* "I felt guided to place a ${part.shortName} at (${bx},${by})."`);
+          // Apply subconscious yield bonuses
+          if (blockId === 4) {
+            mintLLM(this.rt.memory, 10, 'Subconscious Housing Yield');
+            this.showSpeechBubble(`*Housing Yield!* "Synthesized a Cottage! +10 $LLM yield!"`);
+          } else if (blockId === 7) {
+            mintLLM(this.rt.memory, 5, 'Subconscious Crop Yield');
+            this.rt.memory.energy = Math.min(100, this.rt.memory.energy + 20);
+            this.showSpeechBubble(`*Harvest Yield!* "Synthesized a Sprout Farm! +20 Energy, +5 $LLM!"`);
+          } else if (blockId === 9) {
+            this.rt.memory.energy = Math.min(100, this.rt.memory.energy + 10);
+            this.showSpeechBubble(`*Aquifer Yield!* "Tapped an aquifer Well! +10 Energy!"`);
+          } else if (blockId === 6) {
+            mintLLM(this.rt.memory, 15, 'Subconscious Watch Tower Scan');
+            this.showSpeechBubble(`*Scan Yield!* "Synthesized a Watch Tower! Scanned horizon: +15 $LLM!"`);
+          } else if (blockId === 2) {
+            this.rt.memory.inspiration = 100;
+            this.showSpeechBubble(`*Shrine Alignment!* "Synthesized a Shrine! Inspiration fully restored!"`);
+          } else {
+            this.showSpeechBubble(`*Feels a creative spark!* "I felt guided to place a ${part.shortName} at (${bx},${by})."`);
+          }
+
           this.sync();
           saveGame(this.rt);
         }
@@ -1698,7 +1745,7 @@ export class PlayScene extends Phaser.Scene {
       BUILD_FARM: 7,
       BUILD_FENCE: 8,
       BUILD_WELL: 9,
-      BUILD_PLAZA: 10
+      BUILD_PLAZA: 3
     };
     if (scriptBuildActions[action] != null) {
       const blockId = scriptBuildActions[action]!;
@@ -1720,7 +1767,27 @@ export class PlayScene extends Phaser.Scene {
           wy: by,
         }, this.isNearShrine());
 
-        this.showSpeechBubble(`*Follows action cue* "Placing a ${part.shortName} at (${bx},${by})."`);
+        // Apply script yield bonuses
+        if (blockId === 4) {
+          mintLLM(this.rt.memory, 10, 'Script Housing Yield');
+          this.showSpeechBubble(`*Housing Yield!* "Placed a Cottage! +10 $LLM yield!"`);
+        } else if (blockId === 7) {
+          mintLLM(this.rt.memory, 5, 'Script Crop Yield');
+          this.rt.memory.energy = Math.min(100, this.rt.memory.energy + 20);
+          this.showSpeechBubble(`*Harvest Yield!* "Placed a Sprout Farm! +20 Energy, +5 $LLM!"`);
+        } else if (blockId === 9) {
+          this.rt.memory.energy = Math.min(100, this.rt.memory.energy + 10);
+          this.showSpeechBubble(`*Aquifer Yield!* "Placed a Well! +10 Energy!"`);
+        } else if (blockId === 6) {
+          mintLLM(this.rt.memory, 15, 'Script Watch Tower Scan');
+          this.showSpeechBubble(`*Scan Yield!* "Placed a Watch Tower! Scanned horizon: +15 $LLM!"`);
+        } else if (blockId === 2) {
+          this.rt.memory.inspiration = 100;
+          this.showSpeechBubble(`*Shrine Alignment!* "Placed a Shrine! Inspiration fully restored!"`);
+        } else {
+          this.showSpeechBubble(`*Follows action cue* "Placing a ${part.shortName} at (${bx},${by})."`);
+        }
+
         this.sync();
         saveGame(this.rt);
         return true;
@@ -1796,7 +1863,6 @@ export class PlayScene extends Phaser.Scene {
 
   private async triggerAutomaticLLMInteraction(biome: BiomeId): Promise<void> {
     if (this.isGlobalLlmCooldownActive()) return;
-    this.lastLlmInteractionTime = this.time.now;
     this.lastGlobalLlmTime = this.time.now;
     if (!this.chat.beginBackgroundTurn()) return;
     const px = this.rt.playerX;
@@ -2019,34 +2085,15 @@ ${memBlock}`;
     const biome = cell.biomeId;
     const states = ['curious', 'nostalgic', 'anxious', 'creative', 'weary', 'dreamy', 'adventurous', 'social'] as const;
 
-    const elapsed = this.time.now - this.lastLlmInteractionTime;
     const cfg = loadApiConfig();
-    const fidelity = cfg.fidelity || 'medium';
-    
-    let timeThreshold = 60000;
-    let stepInterval = 100;
-    
-    if (cfg.slowMode) {
-      timeThreshold = Infinity;
-      stepInterval = Infinity;
-    } else {
-      if (fidelity === 'easy') {
-        timeThreshold = 3600000 * 12; // 12 hours
-        stepInterval = 6000;          // 6,000 steps
-      } else if (fidelity === 'medium') {
-        timeThreshold = 3600000 * 6;  // 6 hours
-        stepInterval = 3000;          // 3,000 steps
-      }
-    }
 
     // We only trigger an actual LLM API call for updating subconsciousness if:
     // 1. Slow Mode is OFF, AND
-    // 2. It is the very first time (no subState set yet), OR at least timeThreshold has elapsed AND on a clean step interval.
+    // 2. The Global LLM Cooldown is NOT active!
     // Otherwise, we skip the expensive API call and fall back to cheap, deterministic coordinate-hash seeded scripts!
-    const useLLM = !cfg.slowMode && !this.isGlobalLlmCooldownActive() && (!mem.subState || (elapsed >= timeThreshold && steps % stepInterval === 0));
+    const useLLM = !cfg.slowMode && !this.isGlobalLlmCooldownActive();
 
     if (useLLM) {
-      this.lastLlmInteractionTime = this.time.now;
       this.lastGlobalLlmTime = this.time.now;
       try {
         const memBlock = formatMemoryForPrompt(mem, this.rt.tokemon.name, px, py, biome);
@@ -2071,7 +2118,7 @@ Select exactly one of these states:
 
 For the "behaviorScript", provide a sequence of 5 to 8 actions. Each action must be exactly one of:
 - "MOVE_N", "MOVE_S", "MOVE_E", "MOVE_W" (movement)
-- "BUILD_PATH", "BUILD_COTTAGE", "BUILD_WELL", "BUILD_SHRINE", "BUILD_TOWER", "BUILD_HALL" (spending $LLM to place elements)
+- "BUILD_PATH", "BUILD_COTTAGE", "BUILD_WELL", "BUILD_SHRINE", "BUILD_TOWER", "BUILD_HALL", "BUILD_FARM", "BUILD_FENCE", "BUILD_PLAZA" (spending $LLM to place elements)
 - "HARVEST" (mine adjacent relics)
 - "REST" (recover energy)
 - "TALK" (speak dialogue bubble)
@@ -2309,7 +2356,6 @@ Respond with exactly a JSON object in this format (no other text, markdown block
   }
 
   private async triggerCreatureInteraction(c: WildCreature): Promise<void> {
-    this.lastLlmInteractionTime = this.time.now;
     c.moveCooldown = 12000; // freeze creature
     
     // Scale bounce tween
@@ -2409,27 +2455,18 @@ ${this.rt.tokemon.name}: "My code recognizes your pattern."`
     }
 
     const cfg = loadApiConfig();
-    
-    // Complete automatic API silence when Slow Mode is enabled!
     if (cfg.slowMode) {
       return;
     }
 
-    const elapsed = this.time.now - this.lastLlmInteractionTime;
-    const fidelity = cfg.fidelity || 'medium';
-    
-    let interval = this.autonomousMode ? 60000 : 90000; // 60s in auto-mode, 90s in companion manual-mode
-    if (fidelity === 'easy') {
-      interval *= 120; // 120 minutes (2 hours) / 180 minutes in companion
-    } else if (fidelity === 'medium') {
-      interval *= 30;  // 30 minutes / 45 minutes in companion
+    if (this.isGlobalLlmCooldownActive()) {
+      return;
     }
 
-    if (elapsed >= interval) {
-      this.lastLlmInteractionTime = this.time.now;
-      const cell = getCell(this.rt, this.rt.playerX, this.rt.playerY);
-      void this.triggerAutomaticLLMInteraction(cell.biomeId);
-    }
+    // Since the Global Cooldown is not active, trigger a spontaneous poetic comment!
+    this.lastGlobalLlmTime = this.time.now;
+    const cell = getCell(this.rt, this.rt.playerX, this.rt.playerY);
+    void this.triggerAutomaticLLMInteraction(cell.biomeId);
   }
 
   private findShortestPath(

@@ -212,13 +212,26 @@ export function generateProceduralScript(
       break;
 
     case 'creative':
-      if (memory.llmBalance >= 15) {
+      if (memory.llmBalance >= 3) {
         script.push('BUILD_PATH', 'BUILD_PATH');
         const roll = seedToFloat(worldSeed ^ (memory.wanderSteps * 71));
-        if (roll < 0.3) script.push('BUILD_COTTAGE');
-        else if (roll < 0.5) script.push('BUILD_WELL');
-        else if (roll < 0.7) script.push('BUILD_SHRINE');
-        else script.push('BUILD_PLAZA');
+        if (roll < 0.15) {
+          script.push('BUILD_COTTAGE');
+        } else if (roll < 0.30) {
+          script.push('BUILD_WELL');
+        } else if (roll < 0.45) {
+          script.push('BUILD_FARM');
+        } else if (roll < 0.55) {
+          script.push('BUILD_SHRINE');
+        } else if (roll < 0.65) {
+          script.push('BUILD_TOWER');
+        } else if (roll < 0.75) {
+          script.push('BUILD_HALL');
+        } else if (roll < 0.85) {
+          script.push('BUILD_PLAZA');
+        } else {
+          script.push('BUILD_FENCE');
+        }
         script.push('TALK');
       } else {
         script.push('WANDER', 'TALK', 'MEDITATE');
