@@ -15,7 +15,7 @@ export function drawBuildBlock(
 ): void {
   const part = getBuildPart(blockId);
   const bigKeys = new Set(['cottage', 'hall', 'tower', 'shrine', 'well']);
-  const scale = bigKeys.has(part.key) ? 2.4 : part.key === 'fence' ? 1.2 : 1;
+  const scale = bigKeys.has(part.key) ? 3.0 : part.key === 'fence' ? 1.2 : 1;
   const originX = drawX + tilePx / 2;
   const baseY = drawY + tilePx;
   const x = originX - (tilePx * scale) / 2;

@@ -7,11 +7,11 @@ import { blockKey, saveGame } from '../game/state.js';
 import { SpatialEventBus } from '../game/events.js';
 import { drawWorld, isWalkable, findNearestWalkable } from '../game/world-draw.js';
 import { ChatPanel } from '../ui/chat.js';
-import { noteBiome, noteWander, recordEpisode, spendLLM, mintLLM, formatMemoryForPrompt, getAwakeningLevel, type MemoryEntry } from '../game/memory.js';
+import { noteBiome, noteWander, recordEpisode, spendLLM, mintLLM, formatMemoryForPrompt, getAwakeningLevel } from '../game/memory.js';
 import { getCell } from '../game/world-draw.js';
 import { TILE, viewSize } from '../config.js';
 import { chatCompletion, extractReply } from '../lib/api.js';
-import { cellSeed, seedToFloat } from '@tokemons/kernel';
+import { cellSeed, seedToFloat, type WorldCell } from '@tokemons/kernel';
 import { BUILD_PARTS, getBuildPart, nextBuildPartId } from '../game/build-catalog.js';
 import { ProceduralAudio } from '../game/audio.js';
 
@@ -82,8 +82,9 @@ export class PlayScene extends Phaser.Scene {
   private wildCreatures: WildCreature[] = [];
   private lastEncounterTime = 0;
   private clickTarget: { x: number; y: number } | null = null;
-  private lastReactionTime = 0;
   private lastLlmInteractionTime = 0;
+  private cellCache = new Map<string, WorldCell>();
+  private followerWanderCooldown = 0;
 
   constructor() {
     super({ key: 'Play' });
@@ -431,6 +432,31 @@ export class PlayScene extends Phaser.Scene {
     }
 
     if (this.moveLock || this.autonomousMode || this.chat.isOpen() || this.isTyping()) return;
+
+    const pointer = this.input.activePointer;
+    if (pointer.isDown && !this.rt.buildMode) {
+      const target = pointer.event?.target as HTMLElement | null;
+      const isUI = target && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'BUTTON' ||
+        target.closest('#chat-panel') ||
+        target.closest('#system-menu-container') ||
+        target.closest('#api-settings') ||
+        target.closest('#api-log-panel')
+      );
+      if (!isUI) {
+        const cx = this.scale.width / 2;
+        const cy = this.scale.height / 2;
+        const clickedWx = this.rt.playerX + Math.round((pointer.x - cx) / TILE);
+        const clickedWy = this.rt.playerY + Math.round((pointer.y - cy) / TILE);
+        this.clickTarget = { x: clickedWx, y: clickedWy };
+        if (this.autonomousMode) {
+          this.toggleAutonomousMode(false);
+        }
+      }
+    }
+
     let dx = 0;
     let dy = 0;
     if (this.keys.cursors.left.isDown) dx = -1;
@@ -464,6 +490,57 @@ export class PlayScene extends Phaser.Scene {
           this.clickTarget = null;
         }
       }
+    } else {
+      // Trainer is stationary: process follower idle wandering AI
+      this.followerWanderCooldown -= this.game.loop.delta;
+      if (this.followerWanderCooldown <= 0) {
+        this.followerWanderCooldown = 3000 + Math.random() * 3000;
+        if (Math.random() < 0.45) {
+          const dirs = [
+            { dx: 0, dy: -1 },
+            { dx: 0, dy: 1 },
+            { dx: -1, dy: 0 },
+            { dx: 1, dy: 0 }
+          ];
+          const px = this.rt.playerX;
+          const py = this.rt.playerY;
+          const fx = Math.round(this.followerX);
+          const fy = Math.round(this.followerY);
+
+          const validMoves = dirs.filter(dir => {
+            const nx = fx + dir.dx;
+            const ny = fy + dir.dy;
+            if (nx === px && ny === py) return false;
+            if (!isWalkable(this.rt, nx, ny)) return false;
+            const d = Math.abs(nx - px) + Math.abs(ny - py);
+            return d >= 2 && d <= 4;
+          });
+
+          if (validMoves.length > 0) {
+            const pick = validMoves[Math.floor(Math.random() * validMoves.length)]!;
+            const startFx = fx;
+            const startFy = fy;
+            const targetFx = fx + pick.dx;
+            const targetFy = fy + pick.dy;
+
+            const tweenTarget = { val: 0 };
+            this.tweens.add({
+              targets: tweenTarget,
+              val: 1,
+              duration: MOVE_COOLDOWN_MS,
+              ease: 'Sine.easeInOut',
+              onUpdate: () => {
+                this.followerX = startFx + pick.dx * tweenTarget.val;
+                this.followerY = startFy + pick.dy * tweenTarget.val;
+              },
+              onComplete: () => {
+                this.followerX = targetFx;
+                this.followerY = targetFy;
+              }
+            });
+          }
+        }
+      }
     }
     
     this.checkAutomaticLlmPrompting();
@@ -490,9 +567,6 @@ export class PlayScene extends Phaser.Scene {
     }
 
     this.moveLock = true;
-
-    const startX = this.rt.playerX;
-    const startY = this.rt.playerY;
 
     this.rt.playerX = nx;
     this.rt.playerY = ny;
@@ -573,7 +647,8 @@ export class PlayScene extends Phaser.Scene {
     this.spawnWildCreaturesNearPlayer();
     this.checkCreatureEncounter();
 
-    // Coordinated double-tween: slides player to target and follower to player's left-behind spot
+    // Coordinated double-tween: slides player to target and follower to its new spaced position
+    const nextFollowerPos = this.getNextFollowerPos(nx, ny);
     const target: MoveTweenTarget = {
       pX: this.visualPlayerX,
       pY: this.visualPlayerY,
@@ -585,8 +660,8 @@ export class PlayScene extends Phaser.Scene {
       targets: target,
       pX: nx,
       pY: ny,
-      fX: startX,
-      fY: startY,
+      fX: nextFollowerPos.x,
+      fY: nextFollowerPos.y,
       duration: MOVE_COOLDOWN_MS,
       ease: 'Sine.easeInOut',
       onUpdate: (_t, target) => {
@@ -599,13 +674,56 @@ export class PlayScene extends Phaser.Scene {
       onComplete: () => {
         this.visualPlayerX = nx;
         this.visualPlayerY = ny;
-        this.followerX = startX;
-        this.followerY = startY;
+        this.followerX = nextFollowerPos.x;
+        this.followerY = nextFollowerPos.y;
         this.moveLock = false;
       }
     });
 
     saveGame(this.rt);
+  }
+
+  private getNextFollowerPos(px: number, py: number): { x: number; y: number } {
+    const fx = Math.round(this.followerX);
+    const fy = Math.round(this.followerY);
+    const dCurrent = Math.abs(fx - px) + Math.abs(fy - py);
+    
+    // If current position is walkable, not player's position, and distance is in [2, 4]
+    if (dCurrent >= 2 && dCurrent <= 4 && isWalkable(this.rt, fx, fy) && !(fx === px && fy === py)) {
+      return { x: fx, y: fy };
+    }
+
+    const dirs = [
+      { dx: 0, dy: -1 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
+      { dx: 1, dy: 0 }
+    ];
+
+    let bestPos = { x: fx, y: fy };
+    let minDiff = Math.abs(dCurrent - 2.5);
+
+    // Also consider stay-in-place as a candidate if walkable and not on player
+    const candidates = [{ x: fx, y: fy }];
+    for (const dir of dirs) {
+      candidates.push({ x: fx + dir.dx, y: fy + dir.dy });
+    }
+
+    let foundBetter = false;
+    for (const cand of candidates) {
+      if (cand.x === px && cand.y === py) continue;
+      if (!isWalkable(this.rt, cand.x, cand.y)) continue;
+      
+      const d = Math.abs(cand.x - px) + Math.abs(cand.y - py);
+      const diff = Math.abs(d - 2.5);
+      if (!foundBetter || diff < minDiff) {
+        minDiff = diff;
+        bestPos = cand;
+        foundBetter = true;
+      }
+    }
+
+    return bestPos;
   }
 
   private placeBlockAhead(): void {
@@ -628,9 +746,43 @@ export class PlayScene extends Phaser.Scene {
 
   private placeSelectedBuildPart(wx: number, wy: number): void {
     const part = getBuildPart(this.rt.selectedBlock);
-    if (!part.walkable && wx === this.rt.playerX && wy === this.rt.playerY) {
-      this.showSpeechBubble("Can't build that under your feet.");
-      return;
+    const bigKeys = new Set(['cottage', 'hall', 'tower', 'shrine', 'well']);
+    
+    if (bigKeys.has(part.key)) {
+      // Big building 3x2 footprint check: X [wx - 1, wx + 1], Y [wy - 1, wy]
+      for (let x = wx - 1; x <= wx + 1; x++) {
+        for (let y = wy - 1; y <= wy; y++) {
+          if (x === this.rt.playerX && y === this.rt.playerY) {
+            this.showSpeechBubble("Can't build that on top of yourself!");
+            return;
+          }
+          const fx = Math.round(this.followerX);
+          const fy = Math.round(this.followerY);
+          if (x === fx && y === fy) {
+            this.showSpeechBubble("Can't build that on top of your companion!");
+            return;
+          }
+          if (!isWalkable(this.rt, x, y)) {
+            this.showSpeechBubble("Footprint is blocked or overlapping!");
+            return;
+          }
+        }
+      }
+    } else {
+      if (!part.walkable && wx === this.rt.playerX && wy === this.rt.playerY) {
+        this.showSpeechBubble("Can't build that under your feet.");
+        return;
+      }
+      const fx = Math.round(this.followerX);
+      const fy = Math.round(this.followerY);
+      if (!part.walkable && wx === fx && wy === fy) {
+        this.showSpeechBubble("Can't build that on top of your companion!");
+        return;
+      }
+      if (!part.walkable && !isWalkable(this.rt, wx, wy)) {
+        this.showSpeechBubble("This tile is blocked!");
+        return;
+      }
     }
 
     const distToGuildHall = this.getDistanceToNearestBlock(5); // Guild Hall is ID 5
@@ -701,6 +853,9 @@ export class PlayScene extends Phaser.Scene {
   }
 
   private sync(): void {
+    if (this.cellCache.size > 3000) {
+      this.cellCache.clear();
+    }
     const { viewW, viewH } = viewSize(this.scale.width, this.scale.height);
     const cell = drawWorld(
       this.worldGfx,
@@ -710,7 +865,8 @@ export class PlayScene extends Phaser.Scene {
       viewW,
       viewH,
       TILE,
-      this.time.now
+      this.time.now,
+      this.cellCache
     );
     this.audio.updateBiome(cell.biomeId);
     if (this.rt.lastBiome !== cell.biomeId) {
@@ -1572,12 +1728,12 @@ Respond with exactly a JSON object in this format (no other text, markdown block
         mem.subDirective = parsed.directive || '';
         mem.subThought = parsed.thought || '';
         mem.llmSeedRoll = typeof parsed.llmSeedRoll === 'number' ? parsed.llmSeedRoll : 0.5;
-        this.audio.llmSeedRoll = mem.llmSeedRoll;
+        this.audio.llmSeedRoll = mem.llmSeedRoll ?? 0.5;
         mem.subScript = Array.isArray(parsed.behaviorScript) ? parsed.behaviorScript : [];
         
         recordEpisode(mem, {
           kind: 'reflection',
-          text: `Subconscious Shift: Drive is now [${mem.subState.toUpperCase()}] - "${mem.subThought}" (llmSeedRoll: ${mem.llmSeedRoll.toFixed(2)}, script: ${mem.subScript.join(', ')})`,
+          text: `Subconscious Shift: Drive is now [${mem.subState!.toUpperCase()}] - "${mem.subThought}" (llmSeedRoll: ${mem.llmSeedRoll!.toFixed(2)}, script: ${mem.subScript!.join(', ')})`,
           biome,
           wx: px,
           wy: py,
@@ -1761,7 +1917,7 @@ Respond with exactly a JSON object in this format (no other text, markdown block
 
     if (this.chat.beginBackgroundTurn()) {
       try {
-        const memBlock = formatMemoryForPrompt(this.rt.memory, this.rt.tokemon.name, this.rt.playerX, this.rt.playerY, this.rt.lastBiome || 'grassland');
+        const memBlock = formatMemoryForPrompt(this.rt.memory, this.rt.tokemon.name, this.rt.playerX, this.rt.playerY, this.rt.lastBiome || undefined);
         
         const res = await chatCompletion({
           messages: [

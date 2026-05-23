@@ -55,7 +55,8 @@ export function drawWorld(
   viewW: number,
   viewH: number,
   tilePx: number,
-  timeMs: number
+  timeMs: number,
+  cellCache: Map<string, WorldCell> = new Map()
 ): WorldCell {
   g.clear();
 
@@ -67,12 +68,10 @@ export function drawWorld(
   const fracX = camX - camFloorX;
   const fracY = camY - camFloorY;
 
-  // Render an extra 1-cell padding margin on all sides to prevent pop-in during movement
   const startX = camFloorX - Math.floor(viewW / 2) - 1;
   const startY = camFloorY - Math.floor(viewH / 2) - 1;
   const drawCellsW = viewW + 2;
   const drawCellsH = viewH + 2;
-  const cellCache = new Map<string, WorldCell>();
   const cellAt = (wx: number, wy: number): WorldCell => {
     const key = blockKey(wx, wy);
     let cell = cellCache.get(key);
@@ -156,6 +155,23 @@ export function drawWorld(
 }
 
 export function isWalkable(rt: GameRuntime, wx: number, wy: number): boolean {
+  // Check if any nearby placed big building footprint covers (wx, wy)
+  // A big building placed at (bx, by) blocks cells:
+  // bx - 1 <= wx <= bx + 1   =>  wx - 1 <= bx <= wx + 1
+  // by - 1 <= wy <= by       =>  wy <= by <= wy + 1
+  const bigKeys = new Set(['cottage', 'hall', 'tower', 'shrine', 'well']);
+  for (let bx = wx - 1; bx <= wx + 1; bx++) {
+    for (let by = wy; by <= wy + 1; by++) {
+      const blockId = rt.placedBlocks.get(blockKey(bx, by));
+      if (blockId != null) {
+        const part = getBuildPart(blockId);
+        if (bigKeys.has(part.key)) {
+          return false;
+        }
+      }
+    }
+  }
+
   const blockId = rt.placedBlocks.get(blockKey(wx, wy));
   if (blockId != null) return getBuildPart(blockId).walkable;
   return getCell(rt, wx, wy).walkable;

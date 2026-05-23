@@ -89,22 +89,22 @@ export function drawGroundTile(
   // ORGANIC BIOME TRANSITIONS (Checkerboard Dithering)
   // =========================================================================
   const colorN = getNeighborColor(cellNorth);
-  if (colorN !== null && colorN !== shade) {
+  if (colorN !== null && cellNorth && (cellNorth.biomeId !== cell.biomeId || (cellNorth.groundTileId === 5) !== (cell.groundTileId === 5))) {
     drawDither(drawX, drawY, tilePx, 4, colorN, 'N');
   }
 
   const colorS = getNeighborColor(cellSouth);
-  if (colorS !== null && colorS !== shade) {
+  if (colorS !== null && cellSouth && (cellSouth.biomeId !== cell.biomeId || (cellSouth.groundTileId === 5) !== (cell.groundTileId === 5))) {
     drawDither(drawX, drawY + tilePx - 4, tilePx, 4, colorS, 'S');
   }
 
   const colorW = getNeighborColor(cellWest);
-  if (colorW !== null && colorW !== shade) {
+  if (colorW !== null && cellWest && (cellWest.biomeId !== cell.biomeId || (cellWest.groundTileId === 5) !== (cell.groundTileId === 5))) {
     drawDither(drawX, drawY, 4, tilePx, colorW, 'W');
   }
 
   const colorE = getNeighborColor(cellEast);
-  if (colorE !== null && colorE !== shade) {
+  if (colorE !== null && cellEast && (cellEast.biomeId !== cell.biomeId || (cellEast.groundTileId === 5) !== (cell.groundTileId === 5))) {
     drawDither(drawX + tilePx - 4, drawY, 4, tilePx, colorE, 'E');
   }
 
@@ -112,34 +112,9 @@ export function drawGroundTile(
   if (cell.groundTileId === 5) {
     g.fillStyle(GB.dark, 1);
     g.fillRect(drawX, drawY + Math.floor(tilePx / 2), tilePx + 0.5, 1);
-  } else if (cell.moisture > 0.68 && cell.biomeId !== 'ocean') {
-    g.fillStyle(stepShade(base, 1), 0.7);
-    g.fillRect(drawX + 1, drawY + tilePx - 3, tilePx - 2, 1);
-  } else if (cell.elevation > 0.78) {
-    g.fillStyle(stepShade(base, -1), 0.7);
-    g.fillRect(drawX + 2, drawY + 2, tilePx - 4, 1);
   }
 
   // =========================================================================
-  // 3D Height Relief & Cliff Shadow Ledges in pure DMG
+  // 3D Height Relief & Cliff Shadow Ledges - Removed to eliminate grid lines as requested by the user
   // =========================================================================
-  if (cellSouth && cell.elevation > cellSouth.elevation) {
-    g.fillStyle(GB.darkest, 0.85);
-    g.fillRect(drawX, drawY + tilePx - 2, tilePx + 0.5, 2);
-  }
-
-  if (cellEast && cell.elevation > cellEast.elevation) {
-    g.fillStyle(GB.darkest, 0.85);
-    g.fillRect(drawX + tilePx - 2, drawY, 2, tilePx + 0.5);
-  }
-
-  if (cellNorth && cell.elevation < cellNorth.elevation) {
-    g.fillStyle(GB.darkest, 0.4);
-    g.fillRect(drawX, drawY, tilePx + 0.5, 2);
-  }
-
-  if (cellWest && cell.elevation < cellWest.elevation) {
-    g.fillStyle(GB.darkest, 0.4);
-    g.fillRect(drawX, drawY, 2, tilePx + 0.5);
-  }
 }
