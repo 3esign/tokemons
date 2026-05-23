@@ -49,19 +49,19 @@
       .api-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; position: sticky; bottom: -20px; background: #1a2e1a; padding: 10px 0 0; }
       .api-row button { font-size: 8px; padding: 8px 12px; }
       #api-log-panel { overflow: hidden;  position: fixed; left: 12px; bottom: 12px; top: 12px; width: min(340px, calc(100vw - 24px)); height: calc(100dvh - 24px); background: #1a2e1a; border: 4px solid #1a2e1a; outline: 3px solid #3a5a30; outline-offset: -7px; box-shadow: 6px 6px 0 #1a2e1a; display: flex; flex-direction: column; padding: 6px; z-index: 150; transition: height 0.15s steps(4), top 0.15s steps(4); font-size: calc(10px * var(--api-log-scale)); }
-      #api-log-panel.minimized { top: auto; height: 42px; z-index: 100; }
+      #api-log-panel.minimized { top: auto; height: 42px; z-index: 100; padding-bottom: 0; }
       #api-log-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; font-size: calc(9px * var(--api-log-scale)); background: #3a5a30; color: #d6deb8; border: 3px solid #1a2e1a; margin-bottom: 4px; cursor: pointer; user-select: none; }
       #api-log-minimize { background: #1a2e1a; color: #d6deb8; font-size: calc(8px * var(--api-log-scale)); padding: 1px 5px; box-shadow: 1px 1px 0 #3a5a30; border: 2px solid #d6deb8 !important; }
       .api-log-actions { display: flex; gap: 6px; padding: 4px 2px 6px; }
       .api-log-actions button { flex: 1; font-size: calc(9px * var(--api-log-scale)); padding: 5px 6px; background: #3a5a30; color: #d6deb8; box-shadow: 1px 1px 0 #1a2e1a; }
       #api-log-content { flex: 1; overflow-y: auto; padding: 6px; line-height: 1.4; background: #1a2e1a; color: #8a9a3e; border: 3px solid #1a2e1a; font-size: inherit; }
       #stats-hud { overflow: hidden;  position: fixed; left: 12px; top: 12px; width: min(345px, calc(100vw - 24px)); background: #1a2e1a; border: 4px solid #1a2e1a; outline: 3px solid #3a5a30; outline-offset: -7px; box-shadow: 6px 6px 0 #1a2e1a; display: flex; flex-direction: column; padding: 6px; z-index: 105; transition: height 0.15s steps(4); font-size: calc(9px * var(--stats-hud-scale)); }
-      #stats-hud.minimized { height: 42px; }
+      #stats-hud.minimized { height: 40px; padding-bottom: 0; }
       #stats-hud-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; font-size: calc(9px * var(--stats-hud-scale)); background: #3a5a30; color: #d6deb8; border: 3px solid #1a2e1a; margin-bottom: 4px; cursor: pointer; user-select: none; }
       #stats-hud-minimize { background: #1a2e1a; color: #d6deb8; font-size: calc(8px * var(--stats-hud-scale)); padding: 1px 5px; box-shadow: 1px 1px 0 #3a5a30; border: 2px solid #d6deb8 !important; }
       #stats-hud-content { flex: 1; padding: 6px; background: #1a2e1a; color: #e8f0d0; border: 3px solid #1a2e1a; overflow-y: auto; font-family: 'Press Start 2P', monospace; font-size: inherit; }
       #chat-panel { overflow: hidden;  position: fixed; bottom: 12px; top: 45px; right: 12px; width: min(360px, calc(100vw - 24px)); height: auto; background: #1a2e1a; border: 4px solid #1a2e1a; outline: 3px solid #3a5a30; outline-offset: -7px; box-shadow: 6px 6px 0 #1a2e1a; display: flex; flex-direction: column; z-index: 120; transition: height 0.15s steps(4), top 0.15s steps(4); font-size: calc(9px * var(--chat-panel-scale)); }
-      #chat-panel.minimized { height: 42px; top: auto; }
+      #chat-panel.minimized { height: 42px; top: auto; padding-bottom: 0; }
       #chat-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; font-size: calc(9px * var(--chat-panel-scale)); background: #3a5a30; color: #d6deb8; border: 3px solid #1a2e1a; margin: 4px; cursor: pointer; user-select: none; }
       #chat-minimize { font-size: calc(8px * var(--chat-panel-scale)); padding: 3px 8px; background: #1a2e1a; color: #d6deb8; border: 2px solid #d6deb8 !important; box-shadow: 1px 1px 0 #3a5a30; }
       #chat-log { flex: 1; min-height: 80px; overflow-y: auto; padding: 8px; color: #8a9a3e; line-height: 1.5; font-size: inherit; }

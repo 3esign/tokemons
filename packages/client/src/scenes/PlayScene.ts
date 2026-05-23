@@ -205,7 +205,7 @@ export class PlayScene extends Phaser.Scene {
       if (this.isTyping()) return;
       this.rt.buildMode = !this.rt.buildMode;
       document.getElementById('build-hint')!.classList.toggle('hidden', !this.rt.buildMode);
-      this.refreshHud();
+      this.refreshHud(undefined, true);
     });
     this.bindBuildHotkeys(kb);
     kb.on('keydown-E', (event?: KeyboardEvent) => {
@@ -1074,7 +1074,13 @@ export class PlayScene extends Phaser.Scene {
     this.hudCache.relicInfo = this.findClosestUnlootedRelic(radarRange);
   }
 
-  private refreshHud(biome?: string): void {
+  private lastHudTime = 0;
+  private refreshHud(biome?: string, force = false): void {
+    const now = Date.now();
+    // Only refresh every 200ms unless forced
+    if (!force && now - this.lastHudTime < 200) return;
+    this.lastHudTime = now;
+
     document.getElementById('auto-mode-indicator')?.classList.toggle('hidden', !this.autonomousMode);
     const mem = this.rt.memory;
     const currentBiome = (biome ?? this.rt.lastBiome ?? '?').toUpperCase();
@@ -2083,7 +2089,7 @@ ${memBlock}`;
         const wx = px + dx;
         const wy = py + dy;
         const coordStr = `${wx},${wy}`;
-        if (looted.includes(coordStr)) continue;
+        if (lootedSet.has(coordStr)) continue;
 
         const cell = getCell(this.rt, wx, wy);
         if (cell.propId && MINEABLE_PROPS.has(cell.propId)) {
