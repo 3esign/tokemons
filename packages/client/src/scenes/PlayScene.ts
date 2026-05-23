@@ -451,7 +451,38 @@ export class PlayScene extends Phaser.Scene {
         }
       }
       
-      if (p.alpha <= 0 || p.scale <= 0) {
+          const pointer = this.input.activePointer;
+    if (pointer.isDown && !this.rt.buildMode) {
+      const target = pointer.event?.target as HTMLElement | null;
+      const isUI = target && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'BUTTON' ||
+        target.closest('#chat-panel') ||
+        target.closest('#stats-hud') ||
+        target.closest('#api-log-panel') ||
+        target.closest('#system-menu-container') ||
+        target.closest('#api-settings')
+      );
+      if (!isUI) {
+        const cx = this.scale.width / 2;
+        const cy = this.scale.height / 2;
+        const clickedWx = this.rt.playerX + Math.round((pointer.x - cx) / TILE);
+        const clickedWy = this.rt.playerY + Math.round((pointer.y - cy) / TILE);
+        const path = this.findShortestPath(this.rt.playerX, this.rt.playerY, clickedWx, clickedWy);
+        if (path) {
+          this.clickPath = path;
+          this.rt.memory.subScript = []; // Clear queue on manual click
+        } else {
+          this.clickPath = [];
+        }
+        if (this.autonomousMode) {
+          this.toggleAutonomousMode(false);
+        }
+      }
+    }
+
+    if (p.alpha <= 0 || p.scale <= 0) {
         p.gfx.destroy();
         return false;
       }
@@ -536,35 +567,9 @@ export class PlayScene extends Phaser.Scene {
       }
     }
 
-    if (this.moveLock || this.autonomousMode) return;
+    if (this.moveLock) return;
 
-    const pointer = this.input.activePointer;
-    if (pointer.isDown && !this.rt.buildMode) {
-      const target = pointer.event?.target as HTMLElement | null;
-      const isUI = target && (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.tagName === 'BUTTON' ||
-        target.closest('#chat-panel') ||
-        target.closest('#system-menu-container') ||
-        target.closest('#api-settings') ||
-        target.closest('#api-log-panel')
-      );
-      if (!isUI) {
-        const cx = this.scale.width / 2;
-        const cy = this.scale.height / 2;
-        const clickedWx = this.rt.playerX + Math.round((pointer.x - cx) / TILE);
-        const clickedWy = this.rt.playerY + Math.round((pointer.y - cy) / TILE);
-        const path = this.findShortestPath(this.rt.playerX, this.rt.playerY, clickedWx, clickedWy);
-        if (path) {
-          this.clickPath = path;
-        } else {
-          this.clickPath = [];
-        }
-        if (this.autonomousMode) {
-          this.toggleAutonomousMode(false);
-        }
-      }
+    
     }
 
     let dx = 0;
