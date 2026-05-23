@@ -3,630 +3,78 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <meta name="description" content="Tokemons (CA: TBxx1KPF4QDkZAtWsSGxVd9Jhv6ni4JBHKDUQaupump) - procedural Game Boy world with AI companions. Support fees go to creator!" />
+    <meta name="description" content="Tokemons - procedural Game Boy world with AI companions." />
     <title>Tokemons</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
-      rel="stylesheet"
-    />    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-      html,
-      body {
-        width: 100vw;
-        height: 100dvh;
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        background: #1a2e1a;
-        font-family: 'Press Start 2P', monospace;
-      }
-      #game-root {
-        position: fixed;
-        inset: 0;
-        width: 100vw;
-        height: 100dvh;
-        overflow: hidden;
-        background: #1a2e1a;
-      }
-      #game-root canvas {
-        display: block;
-        width: 100vw !important;
-        height: 100dvh !important;
-      }
-      #ui-layer {
-        position: fixed;
-        inset: 0;
-        pointer-events: none;
-        z-index: 100;
-      }
-      #ui-layer * {
-        pointer-events: auto;
-      }
-
-      /* Custom retro pixel scrollbar */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #1a2e1a;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #3a5a30;
-        border: 2px solid #1a2e1a;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #8a9a3e;
-      }
-
-      /* Tactile Retro Buttons */
-      button {
-        font-family: inherit;
-        border: 3px solid #1a2e1a !important;
-        box-shadow: 3px 3px 0 #1a2e1a;
-        transition: transform 0.05s ease, box-shadow 0.05s ease;
-        cursor: pointer;
-        image-rendering: pixelated;
-        text-transform: uppercase;
-        outline: none;
-      }
-      button:hover {
-        background: #d6deb8 !important;
-        color: #1a2e1a !important;
-      }
-      button:active {
-        transform: translate(2px, 2px);
-        box-shadow: 1px 1px 0 #1a2e1a;
-      }
-
-      @keyframes slideDown {
-        from {
-          opacity: 0;
-          transform: translateY(-8px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      #system-menu-container {
-        position: fixed;
-        top: 8px;
-        right: 8px;
-        z-index: 200; /* Dropdown stays above everything */
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-      }
-      #system-menu-toggle {
-        font-size: 9px;
-        padding: 8px 12px;
-        background: #8a9a3e;
-        color: #1a2e1a;
-        cursor: pointer;
-        display: block;
-      }
-      #system-menu-panel {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        margin-top: 4px;
-        background: #1a2e1a;
-        border: 3px solid #1a2e1a;
-        box-shadow: 4px 4px 0 #3a5a30;
-        padding: 6px;
-        animation: slideDown 0.15s steps(4) forwards;
-      }
-      #system-menu-panel.hidden {
-        display: none;
-      }
-      #system-menu-panel button {
-        font-size: 8px;
-        padding: 6px 10px;
-        text-align: right;
-        width: 150px;
-        display: block;
-      }
-      #api-settings-open {
-        background: #8a9a3e;
-        color: #1a2e1a;
-      }
-      #download-report {
-        color: #d6deb8;
-        background: #3a5a30;
-        padding: 6px;
-        border: 2px dashed #8a9a3e;
-        margin: 6px 0;
-        font-size: 7px;
-        line-height: 1.4;
-        white-space: pre-line;
-      }
-      .chat-levelup {
-        color: #1a2e1a;
-        background: #8a9a3e;
-        padding: 8px;
-        border: 3px double #d6deb8;
-        margin: 8px 0;
-        font-size: 8px;
-        line-height: 1.5;
-        text-align: center;
-        box-shadow: 3px 3px 0 #3a5a30;
-        white-space: pre-line;
-      }
-      #chat-input-row {
-        display: flex;
-        gap: 6px;
-        padding: 2px;
-      }
-      #chat-input {
-        flex: 1;
-        background: #d6deb8;
-        border: 3px solid #1a2e1a;
-        color: #1a2e1a;
-        font-family: inherit;
-        font-size: 11px;
-        padding: 10px;
-        outline: none;
-        box-shadow: inset 2px 2px 0px #3a5a30;
-      }
-      #chat-send {
-        background: #8a9a3e;
-        color: #1a2e1a;
-        padding: 10px 16px;
-        font-size: 11px;
-      }
-
-      /* AI settings modal box styling */
-      #api-settings {
-        display: none;
-        position: fixed;
-        inset: 0;
-        background: rgba(26, 46, 26, 0.95);
-        align-items: center;
-        justify-content: center;
-        z-index: 250;
-        backdrop-filter: blur(2px);
-        padding: 16px;
-      }
-      #api-settings.open {
-        display: flex;
-      }
-      #api-settings-box {
-        width: min(440px, calc(100vw - 32px));
-        max-height: calc(100dvh - 32px);
-        overflow-y: auto;
-        background: #1a2e1a;
-        border: 4px solid #1a2e1a;
-        outline: 3px solid #8a9a3e;
-        outline-offset: -8px;
-        box-shadow: 8px 8px 0 #3a5a30;
-        padding: 20px;
-      }
-      #api-settings-box h2 {
-        font-size: 10px;
-        color: #d6deb8;
-        margin-bottom: 10px;
-        text-align: center;
-        border-bottom: 3px solid #3a5a30;
-        padding-bottom: 8px;
-      }
-      #api-settings-box p {
-        font-size: 7px;
-        color: #8a9a3e;
-        line-height: 1.6;
-        margin-bottom: 12px;
-        text-align: center;
-      }
-      .api-field {
-        margin-bottom: 10px;
-      }
-      .api-field label {
-        display: block;
-        font-size: 7px;
-        color: #8a9a3e;
-        margin-bottom: 4px;
-        text-transform: uppercase;
-      }
-      .api-field input,
-      .api-field select {
-        width: 100%;
-        box-sizing: border-box;
-        background: #d6deb8;
-        border: 3px solid #1a2e1a;
-        color: #1a2e1a;
-        font-family: inherit;
-        font-size: 8px;
-        padding: 8px;
-        outline: none;
-        box-shadow: inset 2px 2px 0px #3a5a30;
-      }
-      .api-checkbox-field {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 10px;
-        cursor: pointer;
-        padding: 4px 0;
-      }
-      .api-checkbox-field input[type="checkbox"] {
-        width: 14px;
-        height: 14px;
-        margin: 0;
-        cursor: pointer;
-        accent-color: #306230;
-      }
-      .api-checkbox-field label {
-        margin: 0;
-        font-size: 7px;
-        color: #8a9a3e;
-        text-transform: uppercase;
-        cursor: pointer;
-        user-select: none;
-      }
-      #api-provider-hint {
-        font-size: 7px;
-        color: #d6deb8;
-        margin-bottom: 10px;
-        line-height: 1.6;
-      }
-      #api-status {
-        font-size: 7px;
-        color: #8a9a3e;
-        margin-bottom: 12px;
-        min-height: 20px;
-        line-height: 1.6;
-        text-align: center;
-        border: 2px dashed #3a5a30;
-        padding: 4px;
-      }
-      #api-status.connected {
-        color: #d6deb8;
-        background: #3a5a30;
-        border: 2px solid #8a9a3e;
-      }
-      .api-row {
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-        justify-content: center;
-        position: sticky;
-        bottom: -20px;
-        background: #1a2e1a;
-        padding: 10px 0 0;
-      }
-      .api-row button {
-        font-size: 8px;
-        padding: 8px 12px;
-      }
-      #api-key-save {
-        background: #8a9a3e;
-        color: #1a2e1a;
-      }
-      #api-key-test {
-        background: #7a8a2e;
-        color: #1a2e1a; /* custom tint */
-      }
-      #api-key-clear {
-        background: #3a5a30;
-        color: #d6deb8;
-      }
-      #api-settings-close {
-        background: #3a5a30;
-        color: #d6deb8;
-      }
-      :root {
-        --ui-font-size-scale: 1.0;
-      }
-      .hidden-scene {
-        display: none !important;
-      }
-
-      /* Technical API Call Logs Panel */
-      #api-log-panel {
-        position: fixed;
-        left: 12px;
-        bottom: 12px;
-        top: 12px;
-        width: min(340px, calc(100vw - 24px));
-        height: calc(100dvh - 24px);
-        background: #1a2e1a;
-        border: 4px solid #1a2e1a;
-        outline: 3px solid #3a5a30;
-        outline-offset: -7px;
-        box-shadow: 6px 6px 0 #1a2e1a;
-        display: flex;
-        flex-direction: column;
-        padding: 6px;
-        z-index: 150; /* Overlaps stats-hud when open */
-        transition: height 0.15s steps(4), top 0.15s steps(4);
-      }
-      #api-log-panel.minimized {
-        top: auto;
-        height: 42px;
-        z-index: 100;
-      }
-      #api-log-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 6px 8px;
-        font-size: calc(9px * var(--ui-font-size-scale, 1.0));
-        background: #3a5a30;
-        color: #d6deb8;
-        border: 3px solid #1a2e1a;
-        margin-bottom: 4px;
-        cursor: pointer;
-        user-select: none;
-      }
-      #api-log-minimize {
-        background: #1a2e1a;
-        color: #d6deb8;
-        font-size: calc(8px * var(--ui-font-size-scale, 1.0));
-        padding: 1px 5px;
-        box-shadow: 1px 1px 0 #3a5a30;
-        border: 2px solid #d6deb8 !important;
-        cursor: pointer;
-      }
-      .api-log-actions {
-        display: flex;
-        gap: 6px;
-        padding: 4px 2px 6px;
-      }
-      .api-log-actions button {
-        flex: 1;
-        font-size: calc(9px * var(--ui-font-size-scale, 1.0));
-        padding: 5px 6px;
-        background: #3a5a30;
-        color: #d6deb8;
-        box-shadow: 1px 1px 0 #1a2e1a;
-        cursor: pointer;
-      }
-      #api-log-content {
-        flex: 1;
-        overflow-y: auto;
-        padding: 6px;
-        font-size: calc(10px * var(--ui-font-size-scale, 1.0));
-        line-height: 1.4;
-        background: #1a2e1a;
-        color: #8a9a3e;
-        border: 3px solid #1a2e1a;
-      }
-      #api-log-panel.minimized #api-log-content {
-        display: none;
-      }
-      #api-log-panel.minimized .api-log-actions {
-        display: none;
-      }
-      .api-log-empty {
-        color: #3a5a30;
-        text-align: center;
-        padding-top: 40px;
-        font-size: calc(9px * var(--ui-font-size-scale, 1.0));
-      }
-      .api-log-entry {
-        border-bottom: 1px dashed #3a5a30;
-        padding: 5px 0;
-        word-break: break-all;
-        white-space: pre-wrap;
-        font-family: monospace;
-        font-size: calc(10px * var(--ui-font-size-scale, 1.0));
-      }
-      .api-log-tx {
-        color: #d6deb8;
-      }
-      .api-log-rx {
-        color: #8a9a3e;
-      }
-      .api-log-err {
-        color: #d6deb8;
-        background: #3a5a30;
-        padding: 3px 6px;
-        border-left: 3px solid #8a9a3e;
-        margin-top: 4px;
-        font-size: calc(10px * var(--ui-font-size-scale, 1.0));
-      }
-
-      /* Stats HUD Panel */
-      #stats-hud {
-        position: fixed;
-        left: 12px;
-        top: 12px;
-        width: min(345px, calc(100vw - 24px));
-        background: #1a2e1a;
-        border: 4px solid #1a2e1a;
-        outline: 3px solid #3a5a30;
-        outline-offset: -7px;
-        box-shadow: 6px 6px 0 #1a2e1a;
-        display: flex;
-        flex-direction: column;
-        padding: 6px;
-        z-index: 105; /* Under API log, under system menu */
-        transition: height 0.15s steps(4);
-      }
-      #stats-hud.minimized {
-        height: 42px;
-      }
-      #stats-hud-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 6px 8px;
-        font-size: calc(9px * var(--ui-font-size-scale, 1.0));
-        background: #3a5a30;
-        color: #d6deb8;
-        border: 3px solid #1a2e1a;
-        margin-bottom: 4px;
-        cursor: pointer;
-        user-select: none;
-      }
-      #stats-hud-minimize {
-        background: #1a2e1a;
-        color: #d6deb8;
-        font-size: calc(8px * var(--ui-font-size-scale, 1.0));
-        padding: 1px 5px;
-        box-shadow: 1px 1px 0 #3a5a30;
-        border: 2px solid #d6deb8 !important;
-        cursor: pointer;
-      }
-      #stats-hud-content {
-        flex: 1;
-        padding: 6px;
-        background: #1a2e1a;
-        color: #e8f0d0;
-        border: 3px solid #1a2e1a;
-        overflow-y: auto;
-        font-family: 'Press Start 2P', monospace;
-      }
-      #stats-hud.minimized #stats-hud-content {
-        display: none;
-      }
-      .hud-line {
-        padding: 3px 0;
-        font-size: calc(9px * var(--ui-font-size-scale, 1.0));
-        line-height: 1.5;
-        white-space: pre-wrap;
-        word-break: break-word;
-      }
-      .hud-divider {
-        border: none;
-        border-bottom: 1px dashed #3a5a30;
-        margin: 5px 0;
-      }
-
-      /* Chat Panel */
-      #chat-panel {
-        position: fixed;
-        bottom: 12px;
-        top: 45px;
-        right: 12px;
-        width: min(360px, calc(100vw - 24px));
-        height: auto;
-        background: #1a2e1a;
-        border: 4px solid #1a2e1a;
-        outline: 3px solid #3a5a30;
-        outline-offset: -7px;
-        box-shadow: 6px 6px 0 #1a2e1a;
-        display: flex;
-        flex-direction: column;
-        z-index: 120;
-        transition: height 0.15s steps(4), top 0.15s steps(4);
-      }
-      #chat-panel.minimized {
-        height: 42px;
-        top: auto;
-      }
-      #chat-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 8px 10px;
-        font-size: calc(9px * var(--ui-font-size-scale, 1.0));
-        background: #3a5a30;
-        color: #d6deb8;
-        border: 3px solid #1a2e1a;
-        margin: 4px;
-        cursor: pointer;
-        user-select: none;
-      }
-      #chat-header span {
-        letter-spacing: 1px;
-      }
-      #chat-minimize {
-        font-size: calc(8px * var(--ui-font-size-scale, 1.0));
-        padding: 3px 8px;
-        background: #1a2e1a;
-        color: #d6deb8;
-        border: 2px solid #d6deb8 !important;
-        box-shadow: 1px 1px 0 #3a5a30;
-        cursor: pointer;
-      }
-      #chat-log {
-        flex: 1;
-        min-height: 80px;
-        overflow-y: auto;
-        padding: 8px;
-        color: #8a9a3e;
-        line-height: 1.5;
-      }
-      #chat-panel.minimized #chat-log {
-        display: none;
-      }
-      #chat-input-row {
-        display: flex;
-        gap: 6px;
-        padding: 6px 8px 8px;
-      }
-      #chat-panel.minimized #chat-input-row {
-        display: none;
-      }
-      .chat-line {
-        padding: 4px 6px;
-        margin-bottom: 4px;
-        word-break: break-word;
-        white-space: pre-wrap;
-        font-size: calc(9px * var(--ui-font-size-scale, 1.0));
-      }
-      .chat-user {
-        color: #d6deb8;
-        border-left: 3px solid #8a9a3e;
-        padding-left: 8px;
-      }
-      .chat-assistant {
-        color: #8a9a3e;
-        border-left: 3px solid #3a5a30;
-        padding-left: 8px;
-      }
-
-      .hidden {
-        display: none !important;
-      }
-      #build-hint {
-        position: fixed;
-        bottom: 8px;
-        left: 50%;
-        transform: translateX(-50%);
-        font-family: inherit;
-        font-size: 8px;
-        color: #d6deb8;
-        background: #1a2e1a;
-        border: 3px solid #1a2e1a;
-        outline: 2px solid #3a5a30;
-        outline-offset: -5px;
-        box-shadow: 4px 4px 0 #1a2e1a;
-        padding: 8px 14px;
-        z-index: 105;
-        line-height: 1.4;
-        pointer-events: none;
-        white-space: nowrap;
-      }
-      #auto-mode-indicator {
-        cursor: pointer;
-        pointer-events: auto !important;
-        position: fixed;
-        top: 12px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: #8a9a3e;
-        color: #1a2e1a;
-        padding: 6px 12px;
-        border: 3px solid #1a2e1a;
-        box-shadow: 4px 4px 0 #1a2e1a;
-        font-size: 10px;
-        z-index: 100;
-        animation: pulse 2s infinite ease-in-out;
-      }
-      @keyframes pulse {
-        0% { opacity: 0.8; }
-        50% { opacity: 1; }
-        100% { opacity: 0.8; }
-      }
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100vw; height: 100dvh; margin: 0; padding: 0; overflow: hidden; background: #1a2e1a; font-family: 'Press Start 2P', monospace; }
+      #game-root { position: fixed; inset: 0; width: 100vw; height: 100dvh; overflow: hidden; background: #1a2e1a; }
+      #game-root canvas { display: block; width: 100vw !important; height: 100dvh !important; }
+      #ui-layer { position: fixed; inset: 0; pointer-events: none; z-index: 100; }
+      #ui-layer * { pointer-events: auto; }
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track { background: #1a2e1a; }
+      ::-webkit-scrollbar-thumb { background: #3a5a30; border: 2px solid #1a2e1a; }
+      ::-webkit-scrollbar-thumb:hover { background: #8a9a3e; }
+      button { font-family: inherit; border: 3px solid #1a2e1a !important; box-shadow: 3px 3px 0 #1a2e1a; transition: transform 0.05s ease, box-shadow 0.05s ease; cursor: pointer; image-rendering: pixelated; text-transform: uppercase; outline: none; }
+      button:hover { background: #d6deb8 !important; color: #1a2e1a !important; }
+      button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #1a2e1a; }
+      #system-menu-container { position: fixed; top: 8px; right: 8px; z-index: 200; display: flex; flex-direction: column; align-items: flex-end; }
+      #system-menu-toggle { font-size: 9px; padding: 8px 12px; background: #8a9a3e; color: #1a2e1a; cursor: pointer; }
+      #system-menu-panel { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; background: #1a2e1a; border: 3px solid #1a2e1a; box-shadow: 4px 4px 0 #3a5a30; padding: 6px; }
+      #system-menu-panel.hidden { display: none; }
+      #system-menu-panel button { font-size: 8px; padding: 6px 10px; text-align: right; width: 150px; }
+      #api-settings { display: none; position: fixed; inset: 0; background: rgba(26, 46, 26, 0.95); align-items: center; justify-content: center; z-index: 250; backdrop-filter: blur(2px); padding: 16px; }
+      #api-settings.open { display: flex; }
+      #api-settings-box { width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; background: #1a2e1a; border: 4px solid #1a2e1a; outline: 3px solid #8a9a3e; outline-offset: -8px; box-shadow: 8px 8px 0 #3a5a30; padding: 20px; }
+      #api-settings-box h2 { font-size: 10px; color: #d6deb8; margin-bottom: 10px; text-align: center; border-bottom: 3px solid #3a5a30; padding-bottom: 8px; }
+      #api-settings-box p { font-size: 7px; color: #8a9a3e; line-height: 1.6; margin-bottom: 12px; text-align: center; }
+      .api-field { margin-bottom: 10px; }
+      .api-field label { display: block; font-size: 7px; color: #8a9a3e; margin-bottom: 4px; text-transform: uppercase; }
+      .api-field input, .api-field select { width: 100%; box-sizing: border-box; background: #d6deb8; border: 3px solid #1a2e1a; color: #1a2e1a; font-family: inherit; font-size: 8px; padding: 8px; outline: none; box-shadow: inset 2px 2px 0px #3a5a30; }
+      .api-checkbox-field { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; cursor: pointer; padding: 4px 0; }
+      .api-checkbox-field input[type="checkbox"] { width: 14px; height: 14px; margin: 0; cursor: pointer; accent-color: #306230; }
+      .api-checkbox-field label { margin: 0; font-size: 7px; color: #8a9a3e; text-transform: uppercase; cursor: pointer; user-select: none; }
+      #api-status { font-size: 7px; color: #8a9a3e; margin-bottom: 12px; min-height: 20px; line-height: 1.6; text-align: center; border: 2px dashed #3a5a30; padding: 4px; }
+      #api-status.connected { color: #d6deb8; background: #3a5a30; border: 2px solid #8a9a3e; }
+      .api-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; position: sticky; bottom: -20px; background: #1a2e1a; padding: 10px 0 0; }
+      .api-row button { font-size: 8px; padding: 8px 12px; }
+      #api-log-panel { position: fixed; left: 12px; bottom: 12px; top: 12px; width: min(340px, calc(100vw - 24px)); height: calc(100dvh - 24px); background: #1a2e1a; border: 4px solid #1a2e1a; outline: 3px solid #3a5a30; outline-offset: -7px; box-shadow: 6px 6px 0 #1a2e1a; display: flex; flex-direction: column; padding: 6px; z-index: 150; transition: height 0.15s steps(4), top 0.15s steps(4); }
+      #api-log-panel.minimized { top: auto; height: 42px; z-index: 100; }
+      #api-log-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; font-size: 9px; background: #3a5a30; color: #d6deb8; border: 3px solid #1a2e1a; margin-bottom: 4px; cursor: pointer; user-select: none; }
+      #api-log-minimize { background: #1a2e1a; color: #d6deb8; font-size: 8px; padding: 1px 5px; box-shadow: 1px 1px 0 #3a5a30; border: 2px solid #d6deb8 !important; }
+      .api-log-actions { display: flex; gap: 6px; padding: 4px 2px 6px; }
+      .api-log-actions button { flex: 1; font-size: 9px; padding: 5px 6px; background: #3a5a30; color: #d6deb8; box-shadow: 1px 1px 0 #1a2e1a; }
+      #api-log-content { flex: 1; overflow-y: auto; padding: 6px; font-size: 10px; line-height: 1.4; background: #1a2e1a; color: #8a9a3e; border: 3px solid #1a2e1a; }
+      #stats-hud { position: fixed; left: 12px; top: 12px; width: min(345px, calc(100vw - 24px)); background: #1a2e1a; border: 4px solid #1a2e1a; outline: 3px solid #3a5a30; outline-offset: -7px; box-shadow: 6px 6px 0 #1a2e1a; display: flex; flex-direction: column; padding: 6px; z-index: 105; transition: height 0.15s steps(4); }
+      #stats-hud.minimized { height: 42px; }
+      #stats-hud-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; font-size: 9px; background: #3a5a30; color: #d6deb8; border: 3px solid #1a2e1a; margin-bottom: 4px; cursor: pointer; user-select: none; }
+      #stats-hud-minimize { background: #1a2e1a; color: #d6deb8; font-size: 8px; padding: 1px 5px; box-shadow: 1px 1px 0 #3a5a30; border: 2px solid #d6deb8 !important; }
+      #stats-hud-content { flex: 1; padding: 6px; background: #1a2e1a; color: #e8f0d0; border: 3px solid #1a2e1a; overflow-y: auto; font-family: 'Press Start 2P', monospace; }
+      #chat-panel { position: fixed; bottom: 12px; top: 45px; right: 12px; width: min(360px, calc(100vw - 24px)); height: auto; background: #1a2e1a; border: 4px solid #1a2e1a; outline: 3px solid #3a5a30; outline-offset: -7px; box-shadow: 6px 6px 0 #1a2e1a; display: flex; flex-direction: column; z-index: 120; transition: height 0.15s steps(4), top 0.15s steps(4); }
+      #chat-panel.minimized { height: 42px; top: auto; }
+      #chat-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; font-size: 9px; background: #3a5a30; color: #d6deb8; border: 3px solid #1a2e1a; margin: 4px; cursor: pointer; user-select: none; }
+      #chat-minimize { font-size: 8px; padding: 3px 8px; background: #1a2e1a; color: #d6deb8; border: 2px solid #d6deb8 !important; box-shadow: 1px 1px 0 #3a5a30; }
+      #chat-log { flex: 1; min-height: 80px; overflow-y: auto; padding: 8px; color: #8a9a3e; line-height: 1.5; }
+      #chat-input-row { display: flex; gap: 6px; padding: 6px 8px 8px; }
+      #chat-input { flex: 1; background: #d6deb8; border: 3px solid #1a2e1a; color: #1a2e1a; font-family: inherit; font-size: 11px; padding: 10px; outline: none; }
+      #chat-send { background: #8a9a3e; color: #1a2e1a; padding: 10px 16px; font-size: 11px; }
+      .chat-line { padding: 4px 6px; margin-bottom: 4px; word-break: break-word; white-space: pre-wrap; font-size: 9px; }
+      .chat-user { color: #d6deb8; border-left: 3px solid #8a9a3e; padding-left: 8px; }
+      .chat-assistant { color: #8a9a3e; border-left: 3px solid #3a5a30; padding-left: 8px; }
+      .hidden { display: none !important; }
+      .hidden-scene { display: none !important; }
+      #auto-mode-indicator { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: #8a9a3e; color: #1a2e1a; padding: 6px 12px; border: 3px solid #1a2e1a; box-shadow: 4px 4px 0 #1a2e1a; font-size: 10px; z-index: 100; cursor: pointer; pointer-events: auto; animation: pulse 2s infinite ease-in-out; }
+      @keyframes pulse { 0% { opacity: 0.8; } 50% { opacity: 1; } 100% { opacity: 0.8; } }
+      #build-hint { position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 8px; color: #d6deb8; background: #1a2e1a; border: 3px solid #1a2e1a; box-shadow: 4px 4px 0 #1a2e1a; padding: 8px 14px; z-index: 105; pointer-events: none; }
+      #api-provider-hint { font-size: 7px; color: #d6deb8; margin-bottom: 10px; text-align: center; }
+      #api-key-row { margin-bottom: 10px; }
+      #api-fidelity-row { margin-bottom: 10px; }
+      #api-log-download { background: #3a5a30; color: #d6deb8; }
+      #api-log-clear { background: #3a5a30; color: #d6deb8; }
     </style>
   </head>
   <body>
@@ -634,7 +82,7 @@
     <div id="ui-layer">
       <div id="auto-mode-indicator" class="hidden">AUTO MODE ACTIVE</div>
       <div id="system-menu-container" class="hidden-scene">
-        <button type="button" id="system-menu-toggle">SYSTEM ☰</button>
+        <button type="button" id="system-menu-toggle">SYSTEM MENU</button>
         <div id="system-menu-panel" class="hidden">
           <button type="button" id="api-settings-open">API CONFIG (P)</button>
           <button type="button" id="download-report">EXPORT REPORT</button>
@@ -644,89 +92,21 @@
       <div id="api-settings">
         <div id="api-settings-box">
           <h2>AI PROVIDER</h2>
-          <p>Choose Ollama, LM Studio, OpenRouter, OpenAI, Groq, etc. Saved in this browser only.</p>
-          <div class="api-field">
-            <label for="api-provider">Provider</label>
-            <select id="api-provider"></select>
-          </div>
+          <div class="api-field"><label>Provider</label><select id="api-provider"></select></div>
           <div id="api-provider-hint"></div>
-          <div class="api-field">
-            <label for="api-base-url">Base URL</label>
-            <input id="api-base-url" type="text" spellcheck="false" />
-          </div>
-          <div class="api-field">
-            <label for="api-model">Model</label>
-            <input id="api-model" type="text" placeholder="model name" spellcheck="false" />
-          </div>
-          <div class="api-field" id="api-key-row">
-            <label for="api-key-input">API key</label>
-            <input
-              id="api-key-input"
-              type="password"
-              placeholder="sk-..."
-              autocomplete="off"
-              spellcheck="false"
-            />
-          </div>
-          <div class="api-field" id="api-fidelity-row">
-            <label for="api-fidelity">Fidelity Level</label>
-            <select id="api-fidelity">
-              <option value="easy">Easy (Low AI Frequency)</option>
-              <option value="medium">Medium (Balanced)</option>
-              <option value="heavy">Heavy (High AI Frequency)</option>
-            </select>
-          </div>
-          <div class="api-checkbox-field" id="api-slowmode-row">
-            <input type="checkbox" id="api-slow-mode" />
-            <label for="api-slow-mode">Slow Mode (Poetic Eco Exploration)</label>
-          </div>
+          <div class="api-field"><label>Base URL</label><input id="api-base-url" type="text" /></div>
+          <div class="api-field"><label>Model</label><input id="api-model" type="text" /></div>
+          <div class="api-field" id="api-key-row"><label>API Key</label><input id="api-key-input" type="password" /></div>
+          <div class="api-field" id="api-fidelity-row"><label>Fidelity</label><select id="api-fidelity"><option value="easy">Easy</option><option value="medium">Medium</option><option value="heavy">Heavy</option></select></div>
+          <div class="api-checkbox-field"><input type="checkbox" id="api-slow-mode" /><label for="api-slow-mode">Slow Mode</label></div>
           <div id="api-status">Not configured</div>
-          <div class="api-row">
-            <button type="button" id="api-key-save">SAVE</button>
-            <button type="button" id="api-key-test">TEST</button>
-            <button type="button" id="api-key-clear">CLEAR</button>
-            <button type="button" id="api-settings-close">CLOSE</button>
-          </div>
+          <div class="api-row"><button id="api-key-save">SAVE</button><button id="api-key-test">TEST</button><button id="api-key-clear">CLEAR</button><button id="api-settings-close">CLOSE</button></div>
         </div>
       </div>
-      <div id="build-hint" class="hidden">BUILD - 1-9 select / Q-R cycle / E or click place / DEL clear / B exit</div>
-
-      <!-- Stats HUD Panel -->
-      <div id="stats-hud" class="minimized hidden-scene">
-        <div id="stats-hud-header">
-          <span>STATS</span>
-          <button type="button" id="stats-hud-minimize">OPEN</button>
-        </div>
-        <div id="stats-hud-content"></div>
-      </div>
-
-      <!-- Chat Panel -->
-      <div id="chat-panel" class="minimized hidden-scene">
-        <div id="chat-header">
-          <span>TOKEMON CHAT (ESC)</span>
-          <button type="button" id="chat-minimize">OPEN</button>
-        </div>
-        <div id="chat-log"></div>
-        <div id="chat-input-row">
-          <input id="chat-input" type="text" placeholder="Talk to your Tokemon..." autocomplete="off" />        
-          <button type="button" id="chat-send">SEND</button>
-        </div>
-      </div>
-
-      <!-- Retro diagnostic API log panel -->
-      <div id="api-log-panel" class="minimized hidden-scene">
-        <div id="api-log-header">
-          <span>API CALL LOGS</span>
-          <button type="button" id="api-log-minimize">OPEN</button>
-        </div>
-        <div class="api-log-actions">
-          <button type="button" id="api-log-download">DOWNLOAD</button>
-          <button type="button" id="api-log-clear">CLEAR</button>
-        </div>
-        <div id="api-log-content">
-          <div class="api-log-empty">No API calls recorded yet.</div>
-        </div>
-      </div>
+      <div id="build-hint" class="hidden">BUILD - 1-9 select / Q-R cycle / E place / DEL clear / B exit</div>
+      <div id="stats-hud" class="minimized hidden-scene"><div id="stats-hud-header"><span>STATS</span><button id="stats-hud-minimize">OPEN</button></div><div id="stats-hud-content"></div></div>
+      <div id="chat-panel" class="minimized hidden-scene"><div id="chat-header"><span>CHAT</span><button id="chat-minimize">OPEN</button></div><div id="chat-log"></div><div id="chat-input-row"><input id="chat-input" type="text" /><button id="chat-send">SEND</button></div></div>
+      <div id="api-log-panel" class="minimized hidden-scene"><div id="api-log-header"><span>LOGS</span><button id="api-log-minimize">OPEN</button></div><div class="api-log-actions"><button id="api-log-download">DOWNLOAD</button><button id="api-log-clear">CLEAR</button></div><div id="api-log-content"></div></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+﻿import Phaser from 'phaser';
 import { bakeTokemonCanvas, ensureGenes } from '@tokemons/tokemon-gen';
 import type { BiomeId } from '@tokemons/kernel';
 import { GB } from '../palette.js';
@@ -86,6 +86,18 @@ export class PlayScene extends Phaser.Scene {
   private followerWanderCooldown = 0;
   private thoughtParticles: any[] = [];
   private lastGlobalLlmTime = -9999999;
+  private activeAuras: string[] = [];
+  private trainerTrail: { x: number; y: number }[] = [];
+  private hudCache = {
+    distToWell: Infinity,
+    distToCottage: Infinity,
+    distToTower: Infinity,
+    distToShrine: Infinity,
+    relicInfo: null as { x: number, y: number, dist: number, propId: string } | null,
+    lastUpdateX: -999,
+    lastUpdateY: -999,
+    lastBlockCount: -1
+  };
 
   constructor() {
     super({ key: 'Play' });
@@ -160,7 +172,7 @@ export class PlayScene extends Phaser.Scene {
       this.showSpeechBubble(text);
       this.lastGlobalLlmTime = this.time.now;
     });
-    document.getElementById('build-hint')!.classList.toggle('hidden', !this.rt.buildMode);
+    document.getElementById('build-hint')?.classList.toggle('hidden', !this.rt.buildMode);
 
     this.audio = new ProceduralAudio();
     this.audio.start(this.rt.worldSeed);
@@ -657,7 +669,7 @@ export class PlayScene extends Phaser.Scene {
     }
 
     this.moveLock = true;
-    this.applyAuraEffects(nx, ny);
+    this.applyAuraEffects(nx, ny); this.updateHudCache();
     this.isSleeping = false; // Manual movement or triggered movement interrupts sleep
 
     this.rt.playerX = nx;
@@ -666,14 +678,14 @@ export class PlayScene extends Phaser.Scene {
     noteWander(this.rt.memory);
 
     // Cottage research funding
-    const distToCottage = this.getDistanceToNearestBlock(4);
+    const distToCottage = this.hudCache.distToCottage;
     if (distToCottage <= 6 && this.rt.memory.wanderSteps % 10 === 0) {
       mintLLM(this.rt.memory, 1, 'Cottage proximity research grant');
       this.showSpeechBubble('*Cottage grant received* "+1 $LLM funded!"');
     }
 
     // Well Hydration
-    const distToWell = this.getDistanceToNearestBlock(9);
+    const distToWell = this.hudCache.distToWell;
     if (distToWell <= 4) {
       this.rt.memory.energy = Math.min(100, this.rt.memory.energy + 10);
     }
@@ -1038,8 +1050,32 @@ export class PlayScene extends Phaser.Scene {
     }
   }
 
+  
+  private updateHudCache(): void {
+    const px = this.rt.playerX;
+    const py = this.rt.playerY;
+    const blockCount = this.rt.placedBlocks.size;
+    
+    // Only update if player moved or buildings changed
+    if (px === this.hudCache.lastUpdateX && py === this.hudCache.lastUpdateY && blockCount === this.hudCache.lastBlockCount) {
+      return;
+    }
+
+    this.hudCache.lastUpdateX = px;
+    this.hudCache.lastUpdateY = py;
+    this.hudCache.lastBlockCount = blockCount;
+
+    this.hudCache.distToWell = this.getDistanceToNearestBlock(9);
+    this.hudCache.distToCottage = this.getDistanceToNearestBlock(4);
+    this.hudCache.distToTower = this.getDistanceToNearestBlock(6);
+    this.hudCache.distToShrine = this.getDistanceToNearestBlock(2);
+
+    const radarRange = this.hudCache.distToTower <= 10 ? 25 : 12;
+    this.hudCache.relicInfo = this.findClosestUnlootedRelic(radarRange);
+  }
+
   private refreshHud(biome?: string): void {
-    document.getElementById('auto-mode-indicator')!.classList.toggle('hidden', !this.autonomousMode);
+    document.getElementById('auto-mode-indicator')?.classList.toggle('hidden', !this.autonomousMode);
     const mem = this.rt.memory;
     const currentBiome = (biome ?? this.rt.lastBiome ?? '?').toUpperCase();
     const posStr = `(${this.rt.playerX},${this.rt.playerY})`;
@@ -1056,9 +1092,8 @@ export class PlayScene extends Phaser.Scene {
       : '';
 
     let cmpssStr = '';
-    const distToTower = this.getDistanceToNearestBlock(6); // Watch Tower ID 6
-    const radarRange = distToTower <= 10 ? 25 : 12;
-    const relic = this.findClosestUnlootedRelic(radarRange);
+    const distToTower = this.hudCache.distToTower;
+    const relic = this.hudCache.relicInfo;
     if (relic) {
       const dx = relic.x - this.rt.playerX;
       const dy = relic.y - this.rt.playerY;
@@ -2192,7 +2227,7 @@ Respond with exactly a JSON object in this format (no other text, markdown block
         }, 3500); // Strict 3.5s timeout!
 
         const reply = extractReply(res);
-        const cleaned = reply.replace(/```json/g, '').replace(/```/g, '').trim();
+        const cleaned = reply.replace(/``json/g, '').replace(/``/g, '').trim();
         const parsed = JSON.parse(cleaned);
         if (parsed && states.includes(parsed.state)) {
           mem.subState = parsed.state;
