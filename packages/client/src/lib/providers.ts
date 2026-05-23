@@ -168,6 +168,7 @@ export function isLocalProvider(cfg: ApiConfig): boolean {
 export function isConfigured(cfg: ApiConfig): boolean {
   const preset = getPreset(cfg.providerId);
   if (!cfg.baseUrl.trim() || !cfg.model.trim()) return false;
+  if (cfg.providerId === 'openrouter') return true;
   if (preset.needsKey && !cfg.apiKey.trim()) return false;
   if (!preset.needsKey && isLocalProvider(cfg)) return true;
   if (!preset.needsKey) return true;

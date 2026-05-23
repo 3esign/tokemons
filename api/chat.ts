@@ -67,7 +67,7 @@ async function forwardChat(
   const res = await fetch(url, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ model, messages }),
+    body: JSON.stringify({ model, messages, max_tokens: 150 }),
   });
   const body = await res.json();
   return { status: res.status, body };

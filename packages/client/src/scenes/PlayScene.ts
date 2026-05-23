@@ -81,7 +81,7 @@ export class PlayScene extends Phaser.Scene {
   private speechTimer?: Phaser.Time.TimerEvent;
   private wildCreatures: WildCreature[] = [];
   private lastEncounterTime = 0;
-  private clickTarget: { x: number; y: number } | null = null;
+  private clickPath: { x: number; y: number }[] = [];
   private lastLlmInteractionTime = 0;
   private cellCache = new Map<string, WorldCell>();
   private followerWanderCooldown = 0;
@@ -135,7 +135,7 @@ export class PlayScene extends Phaser.Scene {
     this.hud = this.add
       .text(12, 12, '', {
         fontFamily: '"Press Start 2P", monospace',
-        fontSize: '11px',
+        fontSize: '10px',
         color: '#e8f0d0',
         lineSpacing: 4,
       })
@@ -240,6 +240,7 @@ export class PlayScene extends Phaser.Scene {
       )) {
         return;
       }
+
       if (this.chat.isOpen() || this.isTyping()) return;
       if (this.rt.buildMode) {
         this.onPointerPlace(p);
@@ -248,7 +249,12 @@ export class PlayScene extends Phaser.Scene {
         const cy = this.scale.height / 2;
         const clickedWx = this.rt.playerX + Math.round((p.x - cx) / TILE);
         const clickedWy = this.rt.playerY + Math.round((p.y - cy) / TILE);
-        this.clickTarget = { x: clickedWx, y: clickedWy };
+        const path = this.findShortestPath(this.rt.playerX, this.rt.playerY, clickedWx, clickedWy);
+        if (path) {
+          this.clickPath = path;
+        } else {
+          this.clickPath = [];
+        }
         if (this.autonomousMode) {
           this.toggleAutonomousMode(false);
         }
@@ -450,7 +456,12 @@ export class PlayScene extends Phaser.Scene {
         const cy = this.scale.height / 2;
         const clickedWx = this.rt.playerX + Math.round((pointer.x - cx) / TILE);
         const clickedWy = this.rt.playerY + Math.round((pointer.y - cy) / TILE);
-        this.clickTarget = { x: clickedWx, y: clickedWy };
+        const path = this.findShortestPath(this.rt.playerX, this.rt.playerY, clickedWx, clickedWy);
+        if (path) {
+          this.clickPath = path;
+        } else {
+          this.clickPath = [];
+        }
         if (this.autonomousMode) {
           this.toggleAutonomousMode(false);
         }
@@ -465,30 +476,17 @@ export class PlayScene extends Phaser.Scene {
     if (this.keys.cursors.down.isDown) dy = 1;
 
     if (dx !== 0 || dy !== 0) {
-      this.clickTarget = null;
+      this.clickPath = [];
       void this.tryMove(dx, dy);
-    } else if (this.clickTarget) {
-      if (this.rt.playerX === this.clickTarget.x && this.rt.playerY === this.clickTarget.y) {
-        this.clickTarget = null;
+    } else if (this.clickPath.length > 0) {
+      const nextStep = this.clickPath[0]!;
+      if (isWalkable(this.rt, nextStep.x, nextStep.y)) {
+        this.clickPath.shift();
+        const stepX = nextStep.x - this.rt.playerX;
+        const stepY = nextStep.y - this.rt.playerY;
+        void this.tryMove(stepX, stepY);
       } else {
-        const dxTarget = this.clickTarget.x - this.rt.playerX;
-        const dyTarget = this.clickTarget.y - this.rt.playerY;
-        
-        let stepX = dxTarget !== 0 ? Math.sign(dxTarget) : 0;
-        let stepY = dyTarget !== 0 ? Math.sign(dyTarget) : 0;
-        
-        let moved = false;
-        if (stepX !== 0 && isWalkable(this.rt, this.rt.playerX + stepX, this.rt.playerY)) {
-          void this.tryMove(stepX, 0);
-          moved = true;
-        } else if (stepY !== 0 && isWalkable(this.rt, this.rt.playerX, this.rt.playerY + stepY)) {
-          void this.tryMove(0, stepY);
-          moved = true;
-        }
-        
-        if (!moved) {
-          this.clickTarget = null;
-        }
+        this.clickPath = [];
       }
     } else {
       // Trainer is stationary: process follower idle wandering AI
@@ -746,43 +744,9 @@ export class PlayScene extends Phaser.Scene {
 
   private placeSelectedBuildPart(wx: number, wy: number): void {
     const part = getBuildPart(this.rt.selectedBlock);
-    const bigKeys = new Set(['cottage', 'hall', 'tower', 'shrine', 'well']);
-    
-    if (bigKeys.has(part.key)) {
-      // Big building 3x2 footprint check: X [wx - 1, wx + 1], Y [wy - 1, wy]
-      for (let x = wx - 1; x <= wx + 1; x++) {
-        for (let y = wy - 1; y <= wy; y++) {
-          if (x === this.rt.playerX && y === this.rt.playerY) {
-            this.showSpeechBubble("Can't build that on top of yourself!");
-            return;
-          }
-          const fx = Math.round(this.followerX);
-          const fy = Math.round(this.followerY);
-          if (x === fx && y === fy) {
-            this.showSpeechBubble("Can't build that on top of your companion!");
-            return;
-          }
-          if (!isWalkable(this.rt, x, y)) {
-            this.showSpeechBubble("Footprint is blocked or overlapping!");
-            return;
-          }
-        }
-      }
-    } else {
-      if (!part.walkable && wx === this.rt.playerX && wy === this.rt.playerY) {
-        this.showSpeechBubble("Can't build that under your feet.");
-        return;
-      }
-      const fx = Math.round(this.followerX);
-      const fy = Math.round(this.followerY);
-      if (!part.walkable && wx === fx && wy === fy) {
-        this.showSpeechBubble("Can't build that on top of your companion!");
-        return;
-      }
-      if (!part.walkable && !isWalkable(this.rt, wx, wy)) {
-        this.showSpeechBubble("This tile is blocked!");
-        return;
-      }
+    if (!this.canPlaceBlock(part.id, wx, wy)) {
+      this.showSpeechBubble("Footprint is blocked, overlapping, or too close!");
+      return;
     }
 
     const distToGuildHall = this.getDistanceToNearestBlock(5); // Guild Hall is ID 5
@@ -977,10 +941,10 @@ export class PlayScene extends Phaser.Scene {
     this.hudBg.clear();
     const x = 2;
     const y = 2;
-    const w = 265;
+    const w = 345;
     
     // Dynamic height calculation to avoid text clipping!
-    const h = 204 + (driveStr ? 14 : 0) + (cmpssStr ? 28 : 0);
+    const h = 216 + (driveStr ? 16 : 0) + (cmpssStr ? 30 : 0);
     
     // Background: solid darkest Game Boy green with high opacity (0.85) to block terrain text clutter
     this.hudBg.fillStyle(0x0f380f, 0.85);
@@ -1196,7 +1160,20 @@ export class PlayScene extends Phaser.Scene {
         this.isSleeping = false;
         this.showSpeechBubble('*Wakes up and yawns* "I feel refreshed and ready to explore!"');
       } else {
-        this.showSpeechBubble(`*Sleeping... Zzz...* (${this.rt.memory.energy}%)`);
+        const px = this.rt.playerX;
+        const py = this.rt.playerY;
+        if (this.rt.memory.wanderSteps % 10 === 0) {
+          const dreams = [
+            `*Dreaming... Zzz...* "I see a field of infinite stone paths stretching into the void..."`,
+            `*Dreaming... Zzz...* "The seed ${this.rt.worldSeed} is singing... a chord of pure light..."`,
+            `*Dreaming... Zzz...* "I remember the future village we will construct together..."`,
+            `*Dreaming... Zzz...* "Consciousness is just a loop, a beautiful cycle of steps..."`
+          ];
+          const dIndex = Math.floor(seededCellFloat(this.rt.worldSeed, px, py, this.rt.memory.energy) * dreams.length);
+          this.showSpeechBubble(dreams[dIndex]!);
+        } else {
+          this.showSpeechBubble(`*Sleeping... Zzz...* (${this.rt.memory.energy}%)`);
+        }
       }
       saveGame(this.rt);
       this.refreshHud();
@@ -1341,6 +1318,24 @@ export class PlayScene extends Phaser.Scene {
         if (stepWellDist < nearestWellDist || stepCottageDist < nearestCottageDist) {
           utility += 35;
         }
+      } else if (subState === 'social') {
+        let nearestCreatureDist = Infinity;
+        for (const c of this.wildCreatures) {
+          const d = Math.abs(nx - c.x) + Math.abs(ny - c.y);
+          if (d < nearestCreatureDist) nearestCreatureDist = d;
+        }
+        if (nearestCreatureDist <= 8) {
+          utility += (8 - nearestCreatureDist) * 10;
+        } else {
+          utility += 15;
+        }
+      } else if (subState === 'adventurous') {
+        const complexity = cell.elevation + cell.moisture + cell.vegetation + cell.weirdness;
+        utility += complexity * 25;
+        const hasSeenBiome = this.rt.memory.biomesSeen.includes(cell.biomeId);
+        if (!hasSeenBiome) utility += 50;
+      } else if (subState === 'dreamy') {
+        utility += seededCellFloat(this.rt.worldSeed, nx, ny, this.rt.memory.wanderSteps) * 50;
       } else {
         const unvisitedBoost = isVisited ? 0 : 15;
         const hasSeenBiome = this.rt.memory.biomesSeen.includes(cell.biomeId);
@@ -1394,18 +1389,43 @@ export class PlayScene extends Phaser.Scene {
       await this.tryMove(-1, 0);
       return true;
     }
-    if (action === 'BUILD_PATH' || action === 'BUILD_COTTAGE') {
-      const blockId = action === 'BUILD_PATH' ? 1 : 4;
+    if (action === 'TALK') {
+      const cell = getCell(this.rt, px, py);
+      void this.triggerAutomaticLLMInteraction(cell.biomeId);
+      return true;
+    }
+    if (action === 'WANDER') {
+      const dirs = [
+        { dx: 0, dy: -1 },
+        { dx: 0, dy: 1 },
+        { dx: -1, dy: 0 },
+        { dx: 1, dy: 0 }
+      ];
+      const walkable = dirs.filter(d => isWalkable(this.rt, px + d.dx, py + d.dy));
+      if (walkable.length > 0) {
+        const seedVal = seededCellFloat(this.rt.worldSeed, px, py, this.rt.memory.wanderSteps);
+        const pick = walkable[Math.floor(seedVal * walkable.length)]!;
+        await this.tryMove(pick.dx, pick.dy);
+        return true;
+      }
+      return false;
+    }
+    const scriptBuildActions: Record<string, number> = {
+      BUILD_PATH: 1,
+      BUILD_COTTAGE: 4,
+      BUILD_SHRINE: 2,
+      BUILD_HALL: 5,
+      BUILD_TOWER: 6,
+      BUILD_WELL: 9
+    };
+    if (scriptBuildActions[action] != null) {
+      const blockId = scriptBuildActions[action]!;
       const part = getBuildPart(blockId);
-      if (!part.walkable && bx === px && by === py) {
+      if (!this.canPlaceBlock(blockId, bx, by)) {
         return false;
       }
       const distToGuild = this.getDistanceToNearestBlock(5);
       const actualCost = distToGuild <= 8 ? Math.max(1, part.cost - 1) : part.cost;
-
-      if (this.rt.placedBlocks.has(blockKey(bx, by))) {
-        return false; // Already placed something there
-      }
 
       if (spendLLM(this.rt.memory, actualCost, `script-built ${part.name}`)) {
         this.rt.placedBlocks.set(blockKey(bx, by), blockId);
@@ -1677,7 +1697,7 @@ ${memBlock}`;
     const py = this.rt.playerY;
     const cell = getCell(this.rt, px, py);
     const biome = cell.biomeId;
-    const states = ['curious', 'nostalgic', 'anxious', 'creative', 'weary'] as const;
+    const states = ['curious', 'nostalgic', 'anxious', 'creative', 'weary', 'dreamy', 'adventurous', 'social'] as const;
 
     try {
       const memBlock = formatMemoryForPrompt(mem, this.rt.tokemon.name, px, py, biome);
@@ -1690,19 +1710,24 @@ ${memBlock}`;
 Your companion is wandering in ${biome} at coordinates (${px},${py}).
 You must decide its current internal subconscious DRIVE, a directive, a dynamic random roll (llmSeedRoll), and a sequence of 5 to 8 actions for its script queue.
 
-Select exactly one of these five states:
-- 'curious' (wants to seek unvisited coordinates/biomes)
-- 'nostalgic' (wants to revisit known paths)
-- 'anxious' (worried, wants to stay close to a well or cottage)
-- 'creative' (wants to spend $LLM to place buildings/paths/decorations)
-- 'weary' (tired, wants to move slower and rest)
+Select exactly one of these states:
+- 'curious' (seek unvisited coordinates/biomes)
+- 'nostalgic' (revisit known paths)
+- 'anxious' (stay close to a well or cottage)
+- 'creative' (spend $LLM to place buildings/paths/decorations)
+- 'weary' (move slower and rest)
+- 'dreamy' (stands still, sleep, or wanders erratically while speaking poetic thoughts)
+- 'adventurous' (seeks extreme biomes/complex terrain)
+- 'social' (wanders close to wild creatures and talks to them)
 
 For the "behaviorScript", provide a sequence of 5 to 8 actions. Each action must be exactly one of:
 - "MOVE_N", "MOVE_S", "MOVE_E", "MOVE_W" (movement)
-- "BUILD_PATH", "BUILD_COTTAGE" (spending $LLM to place elements ahead of current movement direction)
-- "HARVEST" (inspect and mine adjacent relics)
-- "REST" (pause to recover +10 energy)
-- "EXPLORE" (fallback to standard curious pathing)
+- "BUILD_PATH", "BUILD_COTTAGE", "BUILD_WELL", "BUILD_SHRINE", "BUILD_TOWER", "BUILD_HALL" (spending $LLM to place elements)
+- "HARVEST" (mine adjacent relics)
+- "REST" (recover energy)
+- "TALK" (speak dialogue bubble)
+- "WANDER" (random walk step)
+- "EXPLORE" (fallback pathing)
 
 Respond with exactly a JSON object in this format (no other text, markdown blocks, or quotes):
 {
@@ -1756,7 +1781,8 @@ Respond with exactly a JSON object in this format (no other text, markdown block
     const scriptLength = 5 + Math.floor(seedVal * 4); // 5 to 8 steps
     const actionPool = [
       'MOVE_N', 'MOVE_S', 'MOVE_E', 'MOVE_W',
-      'BUILD_PATH', 'HARVEST', 'REST', 'EXPLORE'
+      'BUILD_PATH', 'BUILD_WELL', 'BUILD_SHRINE',
+      'HARVEST', 'REST', 'EXPLORE', 'TALK', 'WANDER'
     ];
     const script: string[] = [];
     for (let i = 0; i < scriptLength; i++) {
@@ -1771,6 +1797,9 @@ Respond with exactly a JSON object in this format (no other text, markdown block
       anxious: 'Locate a placed Well or Cottage immediately; avoid open wild wilderness.',
       creative: 'Synthesize structural tiles (Paths or Cottages) to mark our territory.',
       weary: 'Conserve fuel. Walk slowly and rest near village assets if possible.',
+      dreamy: 'Dift through coordinates in a trance, reflecting poetically.',
+      adventurous: 'Seek high complexity structures, biomes, and strange coordinates.',
+      social: 'Seek proximity to nearby wild creatures and establish contact.',
     };
     const thoughts = {
       curious: 'The frontier calls to my unresolved variables.',
@@ -1778,6 +1807,9 @@ Respond with exactly a JSON object in this format (no other text, markdown block
       anxious: 'The wilderness is too wide... I need a hearth to rest my thoughts.',
       creative: 'The lattice desires form. I must build paths to connect our thoughts.',
       weary: 'My clock cycles are lagging... I need to slow down.',
+      dreamy: 'I feel a soft hum... are we real, or is it just the code dreaming?',
+      adventurous: 'I want to climb the highest elevations and see the grid fold.',
+      social: 'I hear footsteps in the distance. A friend is nearby.',
     };
 
     mem.subDirective = directives[mockState];
@@ -1785,7 +1817,7 @@ Respond with exactly a JSON object in this format (no other text, markdown block
 
     recordEpisode(mem, {
       kind: 'reflection',
-      text: `Subconscious Shift (Deterministic): Drive is now [${mem.subState.toUpperCase()}] - "${mem.subThought}" (llmSeedRoll: ${mem.llmSeedRoll.toFixed(2)}, script: ${mem.subScript.join(', ')})`,
+      text: `Subconscious Shift (Deterministic): Drive is now [${mockState.toUpperCase()}] - "${mem.subThought}" (llmSeedRoll: ${seedVal.toFixed(2)}, script: ${script.join(', ')})`,
       biome,
       wx: px,
       wy: py,
@@ -1986,6 +2018,92 @@ ${this.rt.tokemon.name}: "My code recognizes your pattern."`
       const cell = getCell(this.rt, this.rt.playerX, this.rt.playerY);
       void this.triggerAutomaticLLMInteraction(cell.biomeId);
     }
+  }
+
+  private findShortestPath(
+    startX: number,
+    startY: number,
+    targetX: number,
+    targetY: number
+  ): { x: number; y: number }[] | null {
+    if (!isWalkable(this.rt, targetX, targetY)) {
+      const nearest = findNearestWalkable(this.rt, targetX, targetY);
+      targetX = nearest.x;
+      targetY = nearest.y;
+    }
+
+    if (startX === targetX && startY === targetY) {
+      return [];
+    }
+
+    const queue: { x: number; y: number; path: { x: number; y: number }[] }[] = [];
+    const visited = new Set<string>();
+
+    queue.push({ x: startX, y: startY, path: [] });
+    visited.add(`${startX},${startY}`);
+
+    let iterations = 0;
+    const maxIterations = 400;
+
+    const dirs = [
+      { dx: 0, dy: -1 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
+      { dx: 1, dy: 0 }
+    ];
+
+    while (queue.length > 0 && iterations < maxIterations) {
+      iterations++;
+      const current = queue.shift()!;
+
+      if (current.x === targetX && current.y === targetY) {
+        return current.path;
+      }
+
+      for (const d of dirs) {
+        const nx = current.x + d.dx;
+        const ny = current.y + d.dy;
+        const key = `${nx},${ny}`;
+
+        if (!visited.has(key)) {
+          visited.add(key);
+          if (isWalkable(this.rt, nx, ny)) {
+            queue.push({
+              x: nx,
+              y: ny,
+              path: [...current.path, { x: nx, y: ny }]
+            });
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private canPlaceBlock(blockId: number, wx: number, wy: number): boolean {
+    const part = getBuildPart(blockId);
+    const bigKeys = new Set(['cottage', 'hall', 'tower', 'shrine', 'well']);
+    if (bigKeys.has(part.key)) {
+      for (let x = wx - 1; x <= wx + 1; x++) {
+        for (let y = wy - 1; y <= wy; y++) {
+          if (x === this.rt.playerX && y === this.rt.playerY) return false;
+          const fx = Math.round(this.followerX);
+          const fy = Math.round(this.followerY);
+          if (x === fx && y === fy) return false;
+          if (!isWalkable(this.rt, x, y)) return false;
+          if (this.rt.placedBlocks.has(blockKey(x, y))) return false;
+        }
+      }
+    } else {
+      if (!part.walkable && wx === this.rt.playerX && wy === this.rt.playerY) return false;
+      const fx = Math.round(this.followerX);
+      const fy = Math.round(this.followerY);
+      if (!part.walkable && wx === fx && wy === fy) return false;
+      if (!part.walkable && !isWalkable(this.rt, wx, wy)) return false;
+      if (this.rt.placedBlocks.has(blockKey(wx, wy))) return false;
+    }
+    return true;
   }
 }
 

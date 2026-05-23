@@ -58,7 +58,11 @@ async function fetchDirect(cfg: ApiConfig, body: ChatRequest): Promise<ChatRespo
   const res = await fetch(url, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ model: body.model || cfg.model, messages: body.messages }),
+    body: JSON.stringify({
+      model: body.model || cfg.model,
+      messages: body.messages,
+      max_tokens: 150
+    }),
   });
   const data = (await res.json().catch(() => ({}))) as ChatResponse;
   if (!res.ok) {

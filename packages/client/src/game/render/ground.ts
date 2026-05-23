@@ -37,8 +37,19 @@ export function drawGroundTile(
   cellNorth: WorldCell | null
 ): void {
   const base = BIOME_COLORS[cell.biomeId] ?? GB.light;
-  const variant = TILE_VARIANTS[cell.groundTileId] ?? 0;
-  const shade = cell.groundTileId === 5 ? GB.dark : stepShade(base, variant);
+  let variant = TILE_VARIANTS[cell.groundTileId] ?? 0;
+  if (variant > 1) variant = 1;
+  if (variant < -1) variant = -1;
+  let shade = cell.groundTileId === 5 ? GB.dark : stepShade(base, variant);
+  if (base !== GB.darkest && shade === GB.darkest) {
+    shade = GB.dark;
+  }
+  if (base === GB.lightest && shade === GB.dark) {
+    shade = GB.light;
+  }
+  if (base === GB.light && shade === GB.dark) {
+    shade = GB.light;
+  }
 
   // Fill base tile rectangle - note the + 0.5 overlap to eliminate sub-pixel seams
   g.fillStyle(shade, 1);

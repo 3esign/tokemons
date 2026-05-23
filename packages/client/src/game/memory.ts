@@ -39,7 +39,7 @@ export interface TokemonMemory {
   energy: number;      // Energy Resource
   visitedCoords: string[];
   lootedCoords?: string[];
-  subState?: 'curious' | 'nostalgic' | 'anxious' | 'creative' | 'weary';
+  subState?: 'curious' | 'nostalgic' | 'anxious' | 'creative' | 'weary' | 'dreamy' | 'adventurous' | 'social';
   subDirective?: string;
   subThought?: string;
   subScript?: string[];

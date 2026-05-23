@@ -1,11 +1,11 @@
 import type { PropId } from '@tokemons/kernel';
 
-/** Game Boy DMG + Yellow warm tint (4 shades) */
+/** Game Boy DMG – softened earthy tones (less striking) */
 export const GB = {
-  lightest: 0xe8f0d0,
-  light: 0x9bbc0f,
-  dark: 0x306230,
-  darkest: 0x0f380f,
+  lightest: 0xd6deb8,
+  light: 0x8a9a3e,
+  dark: 0x3a5a30,
+  darkest: 0x1a2e1a,
 } as const;
 
 export const BIOME_COLORS: Record<string, number> = {

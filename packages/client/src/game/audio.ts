@@ -131,7 +131,7 @@ export class ProceduralAudio {
 
       this.masterGain = this.ctx.createGain();
       // Balanced ambient volume
-      this.masterGain.gain.setValueAtTime(0.24, this.ctx.currentTime);
+      this.masterGain.gain.setValueAtTime(0.10, this.ctx.currentTime);
 
       this.mainFilter.connect(this.masterGain);
       this.masterGain.connect(this.ctx.destination);
@@ -223,7 +223,7 @@ export class ProceduralAudio {
     this.muted = v === 0;
     if (this.masterGain && this.ctx) {
       this.masterGain.gain.setValueAtTime(
-        Math.max(0, Math.min(1, v * 0.24)),
+        Math.max(0, Math.min(1, v * 0.10)),
         this.ctx.currentTime
       );
     }
@@ -278,14 +278,14 @@ export class ProceduralAudio {
     // Step 10: Soft Kick
     // Step 12: Rimshot (Beat 4)
     if (step === 0 || step === 8) {
-      this.synthesizeKick(time, 0.42);
+      this.synthesizeKick(time, 0.22);
     } else if (step === 4) {
-      this.synthesizeRimshot(time, 0.25);
-      this.synthesizeKick(time, 0.18);
+      this.synthesizeRimshot(time, 0.13);
+      this.synthesizeKick(time, 0.09);
     } else if (step === 6 || step === 10) {
-      this.synthesizeKick(time, 0.16);
+      this.synthesizeKick(time, 0.08);
     } else if (step === 12) {
-      this.synthesizeRimshot(time, 0.30);
+      this.synthesizeRimshot(time, 0.15);
     }
 
     // 3. Organic Latin Percussion
@@ -297,14 +297,14 @@ export class ProceduralAudio {
     // Syncopated Bongos/Congas hand drum accents
     // Play high/low congas on offbeats to elevate the live ensemble vibe
     if (step === 2 || step === 10 || step === 14) {
-      this.synthesizeConga(time, 'high', step === 2 ? 0.12 : 0.08);
+      this.synthesizeConga(time, 'high', step === 2 ? 0.06 : 0.04);
     } else if (step === 6 || step === 13) {
-      this.synthesizeConga(time, 'low', 0.10);
+      this.synthesizeConga(time, 'low', 0.05);
     }
 
     // Steady shaker triplets on even steps
     if (step % 2 === 0) {
-      this.synthesizeShaker(time, step === 0 || step === 8 ? 0.07 : 0.04);
+      this.synthesizeShaker(time, step === 0 || step === 8 ? 0.035 : 0.02);
     }
 
     // Retrieve active progression
@@ -317,7 +317,7 @@ export class ProceduralAudio {
       chord.forEach((midi, idx) => {
         const sweepDelay = idx * (0.02 + this.llmSeedRoll * 0.03); // Modulated by LLM seed (20ms - 50ms)
         const freq = getMidiFreq(midi);
-        this.synthesizeGuitarPluck(time + sweepDelay, freq, 0.15 - idx * 0.015);
+        this.synthesizeGuitarPluck(time + sweepDelay, freq, 0.08 - idx * 0.008);
       });
       // Move to the next chord index
       this.chordIndex = (this.chordIndex + 1) % progression.length;
@@ -327,7 +327,7 @@ export class ProceduralAudio {
       higherNotes.forEach((midi, idx) => {
         const sweepDelay = idx * (0.015 + this.llmSeedRoll * 0.02);
         const freq = getMidiFreq(midi);
-        this.synthesizeGuitarPluck(time + sweepDelay, freq, 0.06);
+        this.synthesizeGuitarPluck(time + sweepDelay, freq, 0.03);
       });
     }
 
@@ -342,18 +342,18 @@ export class ProceduralAudio {
     const nextRootBass = nextChord[0]! - 12;
 
     if (step === 0) {
-      this.synthesizeBass(time, getMidiFreq(rootBass), stepDuration * 3.6, 0.44);
+      this.synthesizeBass(time, getMidiFreq(rootBass), stepDuration * 3.6, 0.22);
     } else if (step === 4) {
-      this.synthesizeBass(time, getMidiFreq(rootBass + 7), stepDuration * 3.6, 0.40);
+      this.synthesizeBass(time, getMidiFreq(rootBass + 7), stepDuration * 3.6, 0.20);
     } else if (step === 8) {
-      this.synthesizeBass(time, getMidiFreq(rootBass + 12), stepDuration * 1.8, 0.36);
+      this.synthesizeBass(time, getMidiFreq(rootBass + 12), stepDuration * 1.8, 0.18);
     } else if (step === 10) {
       // Sophisticated chromatic passing/leading tone towards the next chord's root
       const diff = nextRootBass - rootBass;
       const passingPitch = nextRootBass + (diff > 0 ? -1 : 1);
-      this.synthesizeBass(time, getMidiFreq(passingPitch), stepDuration * 1.8, 0.36);
+      this.synthesizeBass(time, getMidiFreq(passingPitch), stepDuration * 1.8, 0.18);
     } else if (step === 12) {
-      this.synthesizeBass(time, getMidiFreq(rootBass + 7), stepDuration * 3.6, 0.40);
+      this.synthesizeBass(time, getMidiFreq(rootBass + 7), stepDuration * 3.6, 0.20);
     }
 
     // 6. Generative Breathy Woody Spanish Flute (Adaptive Modal Melody)
@@ -373,7 +373,7 @@ export class ProceduralAudio {
       this.lastMelodyPitch = targetMidi;
 
       const duration = stepDuration * (2.2 + seededFloat(this.worldSeed ^ step) * 1.2);
-      this.synthesizeFlute(time, getMidiFreq(targetMidi), duration, 0.08);
+      this.synthesizeFlute(time, getMidiFreq(targetMidi), duration, 0.04);
     }
   }
 

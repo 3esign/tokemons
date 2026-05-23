@@ -1,8 +1,6 @@
 # Tokemons
 
-**Tokemons** is a browser-based procedural companion adventure by **3esign**. It mixes a Game Boy-inspired world renderer, deterministic terrain sampling, generated creature bodies, local memory, and optional player-owned AI providers into a small playable slice.
-
-CA TBxx1KPF4QDkZAtWsSGxVd9Jhv6ni4JBHKDUQaupump
+**Tokemons** (CA: `TBxx1KPF4QDkZAtWsSGxVd9Jhv6ni4JBHKDUQaupump` - support fees go to creator) is a browser-based procedural companion adventure by **3esign**. It mixes a Game Boy-inspired world renderer, deterministic terrain sampling, generated creature bodies, local memory, and optional player-owned AI providers into a small playable slice.
 
 Play it here: [tokemons.vercel.app](https://tokemons.vercel.app)
 
