@@ -86,6 +86,7 @@ export class PlayScene extends Phaser.Scene {
   private cellCache = new Map<string, WorldCell>();
   private followerWanderCooldown = 0;
   private thoughtParticles: any[] = [];
+  private lastGlobalLlmTime = 0;
 
   constructor() {
     super({ key: 'Play' });
@@ -705,7 +706,7 @@ export class PlayScene extends Phaser.Scene {
     const cfg = loadApiConfig();
     const fidelity = cfg.fidelity || 'medium';
     
-    if (!cfg.slowMode) {
+    if (!cfg.slowMode && !this.isGlobalLlmCooldownActive()) {
       let timeThreshold = this.autonomousMode ? 60000 : 90000; // 60s in auto, 90s in manual
       let triggerInterval = this.autonomousMode ? 100 : 120;
       
@@ -1038,6 +1039,17 @@ export class PlayScene extends Phaser.Scene {
       (mem.creativity * 0.3)
     ));
 
+    // Calculate expanded Latent Recurrent layers representing deep internal consciousness
+    const distToWell = this.getDistanceToNearestBlock(9);
+    const distToCottage = this.getDistanceToNearestBlock(4);
+    const l_attn = Math.min(100, Math.round(
+      (15 - Math.min(15, distToWell, distToCottage, distToTower)) / 15 * 100
+    ));
+    const l_mem = Math.min(100, Math.round((mem.episodes.length / 48) * 100));
+    const l_hid1 = l_hid;
+    const l_hid2 = Math.min(100, Math.round(((mem.entropy + mem.creativity) / 200) * 100));
+    const l_aura = Math.min(100, Math.round(mem.inspiration * 0.7 + mem.energy * 0.3));
+
     const lines = [
       `=== ${this.rt.tokemon.name.toUpperCase()} ===`,
       `AWKN : ${levelStr}`,
@@ -1057,10 +1069,14 @@ export class PlayScene extends Phaser.Scene {
       `CREA : ${mem.creativity.toFixed(0)}/100 (Drift)`,
       `NRGY : ${mem.energy}/100 (Fuel)`,
       `----------------`,
-      `LATENT LAYER ACTIVATIONS:`,
-      `  L_IN (SPATIAL) : [${l_in}%]`,
-      `  L_HID(LATENT)  : [${l_hid}%]`,
-      `  L_OUT(ACTION)  : [${l_out}%]`
+      `LATENT NEURAL ACTIVATIONS:`,
+      `  L_IN  (SPATIAL)   : [${l_in}%]`,
+      `  L_ATTN(ATTENTION) : [${l_attn}%]`,
+      `  L_MEM (RECURRENT) : [${l_mem}%]`,
+      `  L_HID1(COGNITION) : [${l_hid1}%]`,
+      `  L_HID2(LATENT)    : [${l_hid2}%]`,
+      `  L_AURA(EMERGENT)  : [${l_aura}%]`,
+      `  L_OUT (ACTION)    : [${l_out}%]`
     );
 
     if (cmpssStr) {
@@ -1218,6 +1234,26 @@ export class PlayScene extends Phaser.Scene {
     
     saveGame(this.rt);
     this.refreshHud();
+  }
+
+  private isGlobalLlmCooldownActive(): boolean {
+    const cfg = loadApiConfig();
+    
+    // Slow Mode completely halts all background automatic LLM calls
+    if (cfg.slowMode) {
+      return true;
+    }
+    
+    let minGlobalCooldown = 60000; // 1 minute default
+    const fidelity = cfg.fidelity || 'medium';
+    if (fidelity === 'easy') {
+      minGlobalCooldown = 900000; // 15 minutes strict global cooldown!
+    } else if (fidelity === 'medium') {
+      minGlobalCooldown = 450000; // 7.5 minutes strict global cooldown!
+    }
+    
+    const elapsed = this.time.now - this.lastGlobalLlmTime;
+    return elapsed < minGlobalCooldown;
   }
 
   private emitThoughtParticles(state: SubconsciousState): void {
@@ -1759,7 +1795,9 @@ export class PlayScene extends Phaser.Scene {
   }
 
   private async triggerAutomaticLLMInteraction(biome: BiomeId): Promise<void> {
+    if (this.isGlobalLlmCooldownActive()) return;
     this.lastLlmInteractionTime = this.time.now;
+    this.lastGlobalLlmTime = this.time.now;
     if (!this.chat.beginBackgroundTurn()) return;
     const px = this.rt.playerX;
     const py = this.rt.playerY;
@@ -2005,10 +2043,11 @@ ${memBlock}`;
     // 1. Slow Mode is OFF, AND
     // 2. It is the very first time (no subState set yet), OR at least timeThreshold has elapsed AND on a clean step interval.
     // Otherwise, we skip the expensive API call and fall back to cheap, deterministic coordinate-hash seeded scripts!
-    const useLLM = !cfg.slowMode && (!mem.subState || (elapsed >= timeThreshold && steps % stepInterval === 0));
+    const useLLM = !cfg.slowMode && !this.isGlobalLlmCooldownActive() && (!mem.subState || (elapsed >= timeThreshold && steps % stepInterval === 0));
 
     if (useLLM) {
       this.lastLlmInteractionTime = this.time.now;
+      this.lastGlobalLlmTime = this.time.now;
       try {
         const memBlock = formatMemoryForPrompt(mem, this.rt.tokemon.name, px, py, biome);
         
@@ -2305,7 +2344,8 @@ Respond with exactly a JSON object in this format (no other text, markdown block
     const localIndex = Math.floor(seededCellFloat(this.rt.worldSeed, c.x, c.y, 44) * localGreetings.length);
     let finalDialogue = localGreetings[localIndex]!;
 
-    if (this.chat.beginBackgroundTurn()) {
+    if (!this.isGlobalLlmCooldownActive() && this.chat.beginBackgroundTurn()) {
+      this.lastGlobalLlmTime = this.time.now;
       try {
         const memBlock = formatMemoryForPrompt(this.rt.memory, this.rt.tokemon.name, this.rt.playerX, this.rt.playerY, this.rt.lastBiome || undefined);
         
