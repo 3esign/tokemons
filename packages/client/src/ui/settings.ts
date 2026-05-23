@@ -111,7 +111,29 @@ export class ApiSettingsPanel {
       this.baseUrlInput.value = preset.baseUrl;
       this.modelInput.value = preset.defaultModel;
     }
-    this.hintEl.textContent = preset.hint;
+    
+    if (preset.id === 'ollama') {
+      this.hintEl.innerHTML = `
+        <div style="margin-top: 4px; padding: 6px; border: 1px dashed #3a5a30; background: rgba(0,0,0,0.15); border-radius: 2px; text-align: left; line-height: 1.4;">
+          <strong style="color: #fff; display: block; margin-bottom: 2px; font-size: 8px;">Ollama Local Setup (CORS):</strong>
+          To connect the game, you must enable CORS in Ollama by running it with the OLLAMA_ORIGINS environment variable.
+          <div style="margin-top: 4px;">
+            <strong style="color: #d6deb8;">1. Quit Ollama:</strong> Right-click the Ollama icon in your taskbar/tray and select Quit.
+          </div>
+          <div style="margin-top: 4px;">
+            <strong style="color: #d6deb8;">2. Run in terminal:</strong>
+          </div>
+          <div style="margin-top: 2px; padding: 2px; background: #1a2e1a; border-radius: 1px; font-family: monospace; font-size: 6px; color: #a9b968; word-break: break-all;">
+            • macOS/Linux: OLLAMA_ORIGINS="*" ollama serve<br/>
+            • PowerShell: $env:OLLAMA_ORIGINS="*" ; ollama serve<br/>
+            • Windows CMD: set OLLAMA_ORIGINS=* && ollama serve
+          </div>
+        </div>
+      `;
+    } else {
+      this.hintEl.textContent = preset.hint;
+    }
+
     this.keyRow.style.display = preset.needsKey ? 'block' : 'none';
     this.keyInput.placeholder = preset.needsKey ? 'API key (optional for some local)' : 'Not required';
   }

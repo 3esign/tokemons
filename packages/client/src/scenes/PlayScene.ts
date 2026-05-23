@@ -2043,7 +2043,7 @@ ${this.rt.tokemon.name}: "My code recognizes your pattern."`
     visited.add(`${startX},${startY}`);
 
     let iterations = 0;
-    const maxIterations = 400;
+    const maxIterations = 600;
 
     const dirs = [
       { dx: 0, dy: -1 },
@@ -2052,9 +2052,18 @@ ${this.rt.tokemon.name}: "My code recognizes your pattern."`
       { dx: 1, dy: 0 }
     ];
 
+    let closestNode: { x: number; y: number; path: { x: number; y: number }[] } | null = null;
+    let minDistance = Infinity;
+
     while (queue.length > 0 && iterations < maxIterations) {
       iterations++;
       const current = queue.shift()!;
+
+      const dist = Math.abs(current.x - targetX) + Math.abs(current.y - targetY);
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestNode = current;
+      }
 
       if (current.x === targetX && current.y === targetY) {
         return current.path;
@@ -2076,6 +2085,10 @@ ${this.rt.tokemon.name}: "My code recognizes your pattern."`
           }
         }
       }
+    }
+
+    if (closestNode && closestNode.path.length > 0) {
+      return closestNode.path;
     }
 
     return null;

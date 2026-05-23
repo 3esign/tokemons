@@ -45,7 +45,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     apiStyle: 'ollama',
     defaultModel: 'llama3.2',
     needsKey: false,
-    hint: 'Run: ollama serve',
+    hint: 'Enable CORS for local Ollama. macOS/Linux: OLLAMA_ORIGINS="*" ollama serve | Windows CMD: set OLLAMA_ORIGINS=* && ollama serve | PowerShell: $env:OLLAMA_ORIGINS="*" ; ollama serve',
   },
   {
     id: 'lmstudio',
