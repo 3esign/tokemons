@@ -229,6 +229,9 @@ export function generateProceduralScript(
     return script;
   }
 
+  if (epoch === 'cosmic' && nearestShrineDist > 2 && nearestShrineDist < 12) {
+      script.push('WANDER'); // Seek transcendence
+  }
   if (epoch === 'social' && nearestPathDist > 2 && nearestPathDist < 8) {
       script.push('WANDER'); 
   }
