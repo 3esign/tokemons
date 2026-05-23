@@ -135,28 +135,31 @@ export class PlayScene extends Phaser.Scene {
       cursors: kb.createCursorKeys(),
     };
 
-    kb.on('keydown-ESC', () => this.chat.toggle());
+    kb.on('keydown-ESC', () => {
+      if (this.isTyping() && !this.chat.isOpen()) return;
+      this.chat.toggle();
+    });
     kb.on('keydown-B', () => {
-      if (this.chat.isOpen()) return;
+      if (this.chat.isOpen() || this.isTyping()) return;
       this.rt.buildMode = !this.rt.buildMode;
       document.getElementById('build-hint')!.classList.toggle('hidden', !this.rt.buildMode);
       this.refreshHud();
     });
     this.bindBuildHotkeys(kb);
     kb.on('keydown-E', () => {
-      if (this.chat.isOpen()) return;
+      if (this.chat.isOpen() || this.isTyping()) return;
       this.inspectOrMine();
     });
     kb.on('keydown-F', () => {
-      if (this.chat.isOpen()) return;
+      if (this.chat.isOpen() || this.isTyping()) return;
       this.toggleAutonomousMode();
     });
     kb.on('keydown-BACKSPACE', () => {
-      if (this.chat.isOpen()) return;
+      if (this.chat.isOpen() || this.isTyping()) return;
       this.clearBlockAhead();
     });
     kb.on('keydown-DELETE', () => {
-      if (this.chat.isOpen()) return;
+      if (this.chat.isOpen() || this.isTyping()) return;
       this.clearBlockAhead();
     });
 
@@ -214,7 +217,7 @@ export class PlayScene extends Phaser.Scene {
       }
     }
 
-    if (this.moveLock || this.autonomousMode || this.chat.isOpen()) return;
+    if (this.moveLock || this.autonomousMode || this.chat.isOpen() || this.isTyping()) return;
     let dx = 0;
     let dy = 0;
     if (this.keys.cursors.left.isDown) dx = -1;
@@ -383,19 +386,19 @@ export class PlayScene extends Phaser.Scene {
     const keyNames = ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'];
     for (let i = 0; i < BUILD_PARTS.length; i++) {
       kb.on(`keydown-${keyNames[i]}`, () => {
-        if (this.chat.isOpen()) return;
+        if (this.chat.isOpen() || this.isTyping()) return;
         this.rt.selectedBlock = BUILD_PARTS[i]!.id;
         this.refreshHud();
       });
     }
     kb.on('keydown-Q', () => {
-      if (this.chat.isOpen()) return;
+      if (this.chat.isOpen() || this.isTyping()) return;
       if (!this.rt.buildMode) return;
       this.rt.selectedBlock = nextBuildPartId(this.rt.selectedBlock, -1);
       this.refreshHud();
     });
     kb.on('keydown-R', () => {
-      if (this.chat.isOpen()) return;
+      if (this.chat.isOpen() || this.isTyping()) return;
       if (!this.rt.buildMode) return;
       this.rt.selectedBlock = nextBuildPartId(this.rt.selectedBlock, 1);
       this.refreshHud();
@@ -825,6 +828,13 @@ export class PlayScene extends Phaser.Scene {
     } catch {} finally {
       this.chat.endBackgroundTurn();
     }
+  }
+
+  private isTyping(): boolean {
+    const active = document.activeElement;
+    if (!active) return false;
+    const tag = active.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || active.hasAttribute('contenteditable');
   }
 }
 
