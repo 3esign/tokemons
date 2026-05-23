@@ -187,7 +187,7 @@ export class PlayScene extends Phaser.Scene {
           return;
         }
       }
-      if (this.chat.isOpen() || this.isTyping()) return;
+      if (this.isTyping()) return;
       this.rt.buildMode = !this.rt.buildMode;
       document.getElementById('build-hint')!.classList.toggle('hidden', !this.rt.buildMode);
       this.refreshHud();
@@ -201,7 +201,7 @@ export class PlayScene extends Phaser.Scene {
           return;
         }
       }
-      if (this.chat.isOpen() || this.isTyping()) return;
+      if (this.isTyping()) return;
       this.inspectOrMine();
     });
     kb.on('keydown-F', (event?: KeyboardEvent) => {
@@ -212,7 +212,7 @@ export class PlayScene extends Phaser.Scene {
           return;
         }
       }
-      if (this.chat.isOpen() || this.isTyping()) return;
+      if (this.isTyping()) return;
       this.toggleAutonomousMode();
     });
     kb.on('keydown-BACKSPACE', (event?: KeyboardEvent) => {
@@ -223,7 +223,7 @@ export class PlayScene extends Phaser.Scene {
           return;
         }
       }
-      if (this.chat.isOpen() || this.isTyping()) return;
+      if (this.isTyping()) return;
       this.clearBlockAhead();
     });
     kb.on('keydown-DELETE', (event?: KeyboardEvent) => {
@@ -234,7 +234,7 @@ export class PlayScene extends Phaser.Scene {
           return;
         }
       }
-      if (this.chat.isOpen() || this.isTyping()) return;
+      if (this.isTyping()) return;
       this.clearBlockAhead();
     });
 
@@ -483,7 +483,7 @@ export class PlayScene extends Phaser.Scene {
 
     let dx = 0;
     let dy = 0;
-    const typing = this.chat.isOpen() || this.isTyping();
+    const typing = this.isTyping();
     if (!typing) {
       if (this.keys.cursors.left.isDown) dx = -1;
       if (this.keys.cursors.right.isDown) dx = 1;
@@ -831,19 +831,19 @@ export class PlayScene extends Phaser.Scene {
     const keyNames = ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'];
     for (let i = 0; i < BUILD_PARTS.length; i++) {
       kb.on(`keydown-${keyNames[i]}`, () => {
-        if (this.chat.isOpen() || this.isTyping()) return;
+        if (this.isTyping()) return;
         this.rt.selectedBlock = BUILD_PARTS[i]!.id;
         this.refreshHud();
       });
     }
     kb.on('keydown-Q', () => {
-      if (this.chat.isOpen() || this.isTyping()) return;
+      if (this.isTyping()) return;
       if (!this.rt.buildMode) return;
       this.rt.selectedBlock = nextBuildPartId(this.rt.selectedBlock, -1);
       this.refreshHud();
     });
     kb.on('keydown-R', () => {
-      if (this.chat.isOpen() || this.isTyping()) return;
+      if (this.isTyping()) return;
       if (!this.rt.buildMode) return;
       this.rt.selectedBlock = nextBuildPartId(this.rt.selectedBlock, 1);
       this.refreshHud();
