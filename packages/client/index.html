@@ -9,6 +9,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
     <style>
+      :root {
+        --stats-hud-scale: 1.0;
+        --chat-panel-scale: 1.0;
+        --api-log-scale: 1.0;
+      }
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { width: 100vw; height: 100dvh; margin: 0; padding: 0; overflow: hidden; background: #1a2e1a; font-family: 'Press Start 2P', monospace; }
       #game-root { position: fixed; inset: 0; width: 100vw; height: 100dvh; overflow: hidden; background: #1a2e1a; }
@@ -38,43 +43,41 @@
       .api-checkbox-field { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; cursor: pointer; padding: 4px 0; }
       .api-checkbox-field input[type="checkbox"] { width: 14px; height: 14px; margin: 0; cursor: pointer; accent-color: #306230; }
       .api-checkbox-field label { margin: 0; font-size: 7px; color: #8a9a3e; text-transform: uppercase; cursor: pointer; user-select: none; }
+      #api-provider-hint { font-size: 7px; color: #d6deb8; margin-bottom: 10px; text-align: center; }
       #api-status { font-size: 7px; color: #8a9a3e; margin-bottom: 12px; min-height: 20px; line-height: 1.6; text-align: center; border: 2px dashed #3a5a30; padding: 4px; }
       #api-status.connected { color: #d6deb8; background: #3a5a30; border: 2px solid #8a9a3e; }
       .api-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; position: sticky; bottom: -20px; background: #1a2e1a; padding: 10px 0 0; }
       .api-row button { font-size: 8px; padding: 8px 12px; }
-      #api-log-panel { position: fixed; left: 12px; bottom: 12px; top: 12px; width: min(340px, calc(100vw - 24px)); height: calc(100dvh - 24px); background: #1a2e1a; border: 4px solid #1a2e1a; outline: 3px solid #3a5a30; outline-offset: -7px; box-shadow: 6px 6px 0 #1a2e1a; display: flex; flex-direction: column; padding: 6px; z-index: 150; transition: height 0.15s steps(4), top 0.15s steps(4); }
+      #api-log-panel { position: fixed; left: 12px; bottom: 12px; top: 12px; width: min(340px, calc(100vw - 24px)); height: calc(100dvh - 24px); background: #1a2e1a; border: 4px solid #1a2e1a; outline: 3px solid #3a5a30; outline-offset: -7px; box-shadow: 6px 6px 0 #1a2e1a; display: flex; flex-direction: column; padding: 6px; z-index: 150; transition: height 0.15s steps(4), top 0.15s steps(4); font-size: calc(10px * var(--api-log-scale)); }
       #api-log-panel.minimized { top: auto; height: 42px; z-index: 100; }
-      #api-log-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; font-size: 9px; background: #3a5a30; color: #d6deb8; border: 3px solid #1a2e1a; margin-bottom: 4px; cursor: pointer; user-select: none; }
-      #api-log-minimize { background: #1a2e1a; color: #d6deb8; font-size: 8px; padding: 1px 5px; box-shadow: 1px 1px 0 #3a5a30; border: 2px solid #d6deb8 !important; }
+      #api-log-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; font-size: calc(9px * var(--api-log-scale)); background: #3a5a30; color: #d6deb8; border: 3px solid #1a2e1a; margin-bottom: 4px; cursor: pointer; user-select: none; }
+      #api-log-minimize { background: #1a2e1a; color: #d6deb8; font-size: calc(8px * var(--api-log-scale)); padding: 1px 5px; box-shadow: 1px 1px 0 #3a5a30; border: 2px solid #d6deb8 !important; }
       .api-log-actions { display: flex; gap: 6px; padding: 4px 2px 6px; }
-      .api-log-actions button { flex: 1; font-size: 9px; padding: 5px 6px; background: #3a5a30; color: #d6deb8; box-shadow: 1px 1px 0 #1a2e1a; }
-      #api-log-content { flex: 1; overflow-y: auto; padding: 6px; font-size: 10px; line-height: 1.4; background: #1a2e1a; color: #8a9a3e; border: 3px solid #1a2e1a; }
-      #stats-hud { position: fixed; left: 12px; top: 12px; width: min(345px, calc(100vw - 24px)); background: #1a2e1a; border: 4px solid #1a2e1a; outline: 3px solid #3a5a30; outline-offset: -7px; box-shadow: 6px 6px 0 #1a2e1a; display: flex; flex-direction: column; padding: 6px; z-index: 105; transition: height 0.15s steps(4); }
+      .api-log-actions button { flex: 1; font-size: calc(9px * var(--api-log-scale)); padding: 5px 6px; background: #3a5a30; color: #d6deb8; box-shadow: 1px 1px 0 #1a2e1a; }
+      #api-log-content { flex: 1; overflow-y: auto; padding: 6px; line-height: 1.4; background: #1a2e1a; color: #8a9a3e; border: 3px solid #1a2e1a; font-size: inherit; }
+      #stats-hud { position: fixed; left: 12px; top: 12px; width: min(345px, calc(100vw - 24px)); background: #1a2e1a; border: 4px solid #1a2e1a; outline: 3px solid #3a5a30; outline-offset: -7px; box-shadow: 6px 6px 0 #1a2e1a; display: flex; flex-direction: column; padding: 6px; z-index: 105; transition: height 0.15s steps(4); font-size: calc(9px * var(--stats-hud-scale)); }
       #stats-hud.minimized { height: 42px; }
-      #stats-hud-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; font-size: 9px; background: #3a5a30; color: #d6deb8; border: 3px solid #1a2e1a; margin-bottom: 4px; cursor: pointer; user-select: none; }
-      #stats-hud-minimize { background: #1a2e1a; color: #d6deb8; font-size: 8px; padding: 1px 5px; box-shadow: 1px 1px 0 #3a5a30; border: 2px solid #d6deb8 !important; }
-      #stats-hud-content { flex: 1; padding: 6px; background: #1a2e1a; color: #e8f0d0; border: 3px solid #1a2e1a; overflow-y: auto; font-family: 'Press Start 2P', monospace; }
-      #chat-panel { position: fixed; bottom: 12px; top: 45px; right: 12px; width: min(360px, calc(100vw - 24px)); height: auto; background: #1a2e1a; border: 4px solid #1a2e1a; outline: 3px solid #3a5a30; outline-offset: -7px; box-shadow: 6px 6px 0 #1a2e1a; display: flex; flex-direction: column; z-index: 120; transition: height 0.15s steps(4), top 0.15s steps(4); }
+      #stats-hud-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; font-size: calc(9px * var(--stats-hud-scale)); background: #3a5a30; color: #d6deb8; border: 3px solid #1a2e1a; margin-bottom: 4px; cursor: pointer; user-select: none; }
+      #stats-hud-minimize { background: #1a2e1a; color: #d6deb8; font-size: calc(8px * var(--stats-hud-scale)); padding: 1px 5px; box-shadow: 1px 1px 0 #3a5a30; border: 2px solid #d6deb8 !important; }
+      #stats-hud-content { flex: 1; padding: 6px; background: #1a2e1a; color: #e8f0d0; border: 3px solid #1a2e1a; overflow-y: auto; font-family: 'Press Start 2P', monospace; font-size: inherit; }
+      #chat-panel { position: fixed; bottom: 12px; top: 45px; right: 12px; width: min(360px, calc(100vw - 24px)); height: auto; background: #1a2e1a; border: 4px solid #1a2e1a; outline: 3px solid #3a5a30; outline-offset: -7px; box-shadow: 6px 6px 0 #1a2e1a; display: flex; flex-direction: column; z-index: 120; transition: height 0.15s steps(4), top 0.15s steps(4); font-size: calc(9px * var(--chat-panel-scale)); }
       #chat-panel.minimized { height: 42px; top: auto; }
-      #chat-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; font-size: 9px; background: #3a5a30; color: #d6deb8; border: 3px solid #1a2e1a; margin: 4px; cursor: pointer; user-select: none; }
-      #chat-minimize { font-size: 8px; padding: 3px 8px; background: #1a2e1a; color: #d6deb8; border: 2px solid #d6deb8 !important; box-shadow: 1px 1px 0 #3a5a30; }
-      #chat-log { flex: 1; min-height: 80px; overflow-y: auto; padding: 8px; color: #8a9a3e; line-height: 1.5; }
+      #chat-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; font-size: calc(9px * var(--chat-panel-scale)); background: #3a5a30; color: #d6deb8; border: 3px solid #1a2e1a; margin: 4px; cursor: pointer; user-select: none; }
+      #chat-minimize { font-size: calc(8px * var(--chat-panel-scale)); padding: 3px 8px; background: #1a2e1a; color: #d6deb8; border: 2px solid #d6deb8 !important; box-shadow: 1px 1px 0 #3a5a30; }
+      #chat-log { flex: 1; min-height: 80px; overflow-y: auto; padding: 8px; color: #8a9a3e; line-height: 1.5; font-size: inherit; }
       #chat-input-row { display: flex; gap: 6px; padding: 6px 8px 8px; }
-      #chat-input { flex: 1; background: #d6deb8; border: 3px solid #1a2e1a; color: #1a2e1a; font-family: inherit; font-size: 11px; padding: 10px; outline: none; }
-      #chat-send { background: #8a9a3e; color: #1a2e1a; padding: 10px 16px; font-size: 11px; }
-      .chat-line { padding: 4px 6px; margin-bottom: 4px; word-break: break-word; white-space: pre-wrap; font-size: 9px; }
+      #chat-input { flex: 1; background: #d6deb8; border: 3px solid #1a2e1a; color: #1a2e1a; font-family: inherit; font-size: calc(11px * var(--chat-panel-scale)); padding: 10px; outline: none; }
+      #chat-send { background: #8a9a3e; color: #1a2e1a; padding: 10px 16px; font-size: calc(11px * var(--chat-panel-scale)); }
+      .chat-line { padding: 4px 6px; margin-bottom: 4px; word-break: break-word; white-space: pre-wrap; font-size: inherit; }
       .chat-user { color: #d6deb8; border-left: 3px solid #8a9a3e; padding-left: 8px; }
       .chat-assistant { color: #8a9a3e; border-left: 3px solid #3a5a30; padding-left: 8px; }
+      .hud-line { padding: 3px 0; font-size: inherit; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+      .hud-divider { border: none; border-bottom: 1px dashed #3a5a30; margin: 5px 0; }
       .hidden { display: none !important; }
       .hidden-scene { display: none !important; }
       #auto-mode-indicator { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); background: #8a9a3e; color: #1a2e1a; padding: 6px 12px; border: 3px solid #1a2e1a; box-shadow: 4px 4px 0 #1a2e1a; font-size: 10px; z-index: 100; cursor: pointer; pointer-events: auto; animation: pulse 2s infinite ease-in-out; }
       @keyframes pulse { 0% { opacity: 0.8; } 50% { opacity: 1; } 100% { opacity: 0.8; } }
       #build-hint { position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 8px; color: #d6deb8; background: #1a2e1a; border: 3px solid #1a2e1a; box-shadow: 4px 4px 0 #1a2e1a; padding: 8px 14px; z-index: 105; pointer-events: none; }
-      #api-provider-hint { font-size: 7px; color: #d6deb8; margin-bottom: 10px; text-align: center; }
-      #api-key-row { margin-bottom: 10px; }
-      #api-fidelity-row { margin-bottom: 10px; }
-      #api-log-download { background: #3a5a30; color: #d6deb8; }
-      #api-log-clear { background: #3a5a30; color: #d6deb8; }
     </style>
   </head>
   <body>
@@ -104,9 +107,9 @@
         </div>
       </div>
       <div id="build-hint" class="hidden">BUILD - 1-9 select / Q-R cycle / E place / DEL clear / B exit</div>
-      <div id="stats-hud" class="minimized hidden-scene"><div id="stats-hud-header"><span>STATS</span><button id="stats-hud-minimize">OPEN</button></div><div id="stats-hud-content"></div></div>
-      <div id="chat-panel" class="minimized hidden-scene"><div id="chat-header"><span>CHAT</span><button id="chat-minimize">OPEN</button></div><div id="chat-log"></div><div id="chat-input-row"><input id="chat-input" type="text" /><button id="chat-send">SEND</button></div></div>
-      <div id="api-log-panel" class="minimized hidden-scene"><div id="api-log-header"><span>LOGS</span><button id="api-log-minimize">OPEN</button></div><div class="api-log-actions"><button id="api-log-download">DOWNLOAD</button><button id="api-log-clear">CLEAR</button></div><div id="api-log-content"></div></div>
+      <div id="stats-hud" class="minimized hidden-scene"><div id="stats-hud-header"><span>STATS</span><button type="button" id="stats-hud-minimize">OPEN</button></div><div id="stats-hud-content"></div></div>
+      <div id="chat-panel" class="minimized hidden-scene"><div id="chat-header"><span>CHAT</span><button type="button" id="chat-minimize">OPEN</button></div><div id="chat-log"></div><div id="chat-input-row"><input id="chat-input" type="text" placeholder="Talk to your Tokemon..." /><button id="chat-send">SEND</button></div></div>
+      <div id="api-log-panel" class="minimized hidden-scene"><div id="api-log-header"><span>LOGS</span><button type="button" id="api-log-minimize">OPEN</button></div><div class="api-log-actions"><button id="api-log-download">DL</button><button id="api-log-clear">CLR</button></div><div id="api-log-content"></div></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

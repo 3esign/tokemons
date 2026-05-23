@@ -5,36 +5,47 @@ import { ApiSettingsPanel } from './ui/settings.js';
 import { ApiLogPanel } from './ui/api-log.js';
 import { ReportDownload } from './ui/report.js';
 
-// Load stored font scale factor on startup
-const storedScale = localStorage.getItem('ui-font-size-scale');
-if (storedScale) {
-  const parsed = parseFloat(storedScale);
-  if (!isNaN(parsed) && parsed >= 0.7 && parsed <= 2.0) {
-    document.documentElement.style.setProperty('--ui-font-size-scale', parsed.toFixed(2));
-  }
-}
+// Individual scale configurations
+const scales: Record<string, { var: string, key: string }> = {
+  'stats-hud': { var: '--stats-hud-scale', key: 'ui-scale-stats' },
+  'chat-panel': { var: '--chat-panel-scale', key: 'ui-scale-chat' },
+  'api-log-panel': { var: '--api-log-scale', key: 'ui-scale-log' }
+};
 
-// Global Ctrl + Mouse Wheel listener for font-only zooming inside UI panels
+// Load stored font scales on startup
+Object.values(scales).forEach(cfg => {
+  const stored = localStorage.getItem(cfg.key);
+  if (stored) {
+    const parsed = parseFloat(stored);
+    if (!isNaN(parsed) && parsed >= 0.5 && parsed <= 3.0) {
+      document.documentElement.style.setProperty(cfg.var, parsed.toFixed(2));
+    }
+  }
+});
+
+// Global Ctrl + Mouse Wheel listener for individual panel zooming
 window.addEventListener('wheel', (e) => {
   if (e.ctrlKey) {
-    // Intercept default browser page zoom
-    e.preventDefault();
-
     const target = e.target as HTMLElement | null;
-    const isUI = target && target.closest('#api-log-panel, #stats-hud, #chat-panel');
-    if (isUI) {
-      const currentScaleStr = document.documentElement.style.getPropertyValue('--ui-font-size-scale') || '1.0';
+    const panel = target?.closest('#api-log-panel, #stats-hud, #chat-panel');
+    
+    if (panel) {
+      e.preventDefault();
+      const cfg = scales[panel.id];
+      if (!cfg) return;
+
+      const currentScaleStr = document.documentElement.style.getPropertyValue(cfg.var) || '1.0'; 
       let scale = parseFloat(currentScaleStr);
       if (isNaN(scale)) scale = 1.0;
 
       if (e.deltaY < 0) {
-        scale = Math.min(2.0, scale + 0.05);
+        scale = Math.min(3.0, scale + 0.05);
       } else {
-        scale = Math.max(0.7, scale - 0.05);
+        scale = Math.max(0.5, scale - 0.05);
       }
 
-      document.documentElement.style.setProperty('--ui-font-size-scale', scale.toFixed(2));
-      localStorage.setItem('ui-font-size-scale', scale.toFixed(2));
+      document.documentElement.style.setProperty(cfg.var, scale.toFixed(2));
+      localStorage.setItem(cfg.key, scale.toFixed(2));
     }
   }
 }, { passive: false });
@@ -50,7 +61,7 @@ requestAnimationFrame(fit);
 
 document.getElementById('reset-game')?.addEventListener('click', () => {
   clearSave();
-  
+
   // Clean up UI panel states on reset
   const panels = ['chat-panel', 'api-log-panel', 'stats-hud', 'system-menu-container'];
   panels.forEach(id => {
