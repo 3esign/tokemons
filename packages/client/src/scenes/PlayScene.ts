@@ -12,6 +12,7 @@ import { getCell } from '../game/world-draw.js';
 import { TILE, viewSize } from '../config.js';
 import { chatCompletion, extractReply } from '../lib/api.js';
 import { cellSeed, seedToFloat, type WorldCell } from '@tokemons/kernel';
+import { loadApiConfig } from '../lib/providers.js';
 import { BUILD_PARTS, getBuildPart, nextBuildPartId } from '../game/build-catalog.js';
 import { ProceduralAudio } from '../game/audio.js';
 
@@ -52,12 +53,10 @@ interface MoveTweenTarget {
 export class PlayScene extends Phaser.Scene {
   private rt!: GameRuntime;
   private worldGfx!: Phaser.GameObjects.Graphics;
-  private hud!: Phaser.GameObjects.Text;
   private player!: Phaser.GameObjects.Image;
   private follower!: Phaser.GameObjects.Image | Phaser.GameObjects.Arc;
   private shadow!: Phaser.GameObjects.Ellipse;
   private playerShadow!: Phaser.GameObjects.Ellipse;
-  private hudBg!: Phaser.GameObjects.Graphics;
   private spatialEvents = new SpatialEventBus();
   private chat!: ChatPanel;
   private audio!: ProceduralAudio;
@@ -112,7 +111,6 @@ export class PlayScene extends Phaser.Scene {
     this.lastLlmInteractionTime = this.time.now;
     this.cameras.main.setBackgroundColor(GB.darkest);
     this.worldGfx = this.add.graphics();
-    this.hudBg = this.add.graphics().setScrollFactor(0).setDepth(19);
 
     const trainerKey = bakeTrainer(this);
     this.player = this.add.image(0, 0, trainerKey).setOrigin(0.5, 0.85).setDepth(5).setScale(1.25);
@@ -132,15 +130,28 @@ export class PlayScene extends Phaser.Scene {
       this.shadow = this.add.ellipse(0, 0, 23, 7, 0x0f380f, 0.4).setDepth(3);
     }
 
-    this.hud = this.add
-      .text(12, 12, '', {
-        fontFamily: '"Press Start 2P", monospace',
-        fontSize: '10px',
-        color: '#e8f0d0',
-        lineSpacing: 4,
-      })
-      .setScrollFactor(0)
-      .setDepth(20);
+    // Unhide HTML UI panels for play mode
+    document.getElementById('api-log-panel')?.classList.remove('hidden-scene');
+    document.getElementById('stats-hud')?.classList.remove('hidden-scene');
+    document.getElementById('chat-panel')?.classList.remove('hidden-scene');
+    document.getElementById('system-menu-container')?.classList.remove('hidden-scene');
+
+    // Stats HUD minimization logic
+    const statsHudHeader = document.getElementById('stats-hud-header');
+    const statsHud = document.getElementById('stats-hud');
+    const statsHudMinimize = document.getElementById('stats-hud-minimize');
+    if (statsHudHeader && statsHud && statsHudMinimize) {
+      const toggleStatsHud = () => {
+        statsHud.classList.toggle('minimized');
+        const isMin = statsHud.classList.contains('minimized');
+        statsHudMinimize.textContent = isMin ? 'OPEN' : 'HIDE';
+      };
+      statsHudHeader.addEventListener('click', (e) => {
+        if (e.target === statsHudHeader || e.target === statsHudMinimize || (e.target as HTMLElement).tagName === 'SPAN') {
+          toggleStatsHud();
+        }
+      });
+    }
 
     this.chat = new ChatPanel(this.rt, () => this.spatialEvents.recent(), (text) => {
       this.showSpeechBubble(text);
@@ -241,7 +252,9 @@ export class PlayScene extends Phaser.Scene {
         return;
       }
 
-      if (this.chat.isOpen() || this.isTyping()) return;
+      if (this.chat.isOpen()) {
+        setTimeout(() => this.chat.focus(), 10);
+      }
       if (this.rt.buildMode) {
         this.onPointerPlace(p);
       } else {
@@ -432,12 +445,12 @@ export class PlayScene extends Phaser.Scene {
     if (this.autonomousMode && !this.moveLock) {
       this.autoMoveCooldown -= this.game.loop.delta;
       if (this.autoMoveCooldown <= 0) {
-        this.autoMoveCooldown = 400;
+        this.autoMoveCooldown = 120;
         void this.autonomousStep();
       }
     }
 
-    if (this.moveLock || this.autonomousMode || this.chat.isOpen() || this.isTyping()) return;
+    if (this.moveLock || this.autonomousMode) return;
 
     const pointer = this.input.activePointer;
     if (pointer.isDown && !this.rt.buildMode) {
@@ -470,18 +483,23 @@ export class PlayScene extends Phaser.Scene {
 
     let dx = 0;
     let dy = 0;
-    if (this.keys.cursors.left.isDown) dx = -1;
-    if (this.keys.cursors.right.isDown) dx = 1;
-    if (this.keys.cursors.up.isDown) dy = -1;
-    if (this.keys.cursors.down.isDown) dy = 1;
+    const typing = this.chat.isOpen() || this.isTyping();
+    if (!typing) {
+      if (this.keys.cursors.left.isDown) dx = -1;
+      if (this.keys.cursors.right.isDown) dx = 1;
+      if (this.keys.cursors.up.isDown) dy = -1;
+      if (this.keys.cursors.down.isDown) dy = 1;
+    }
 
     if (dx !== 0 || dy !== 0) {
       this.clickPath = [];
+      this.rt.memory.subScript = [];
       void this.tryMove(dx, dy);
     } else if (this.clickPath.length > 0) {
       const nextStep = this.clickPath[0]!;
       if (isWalkable(this.rt, nextStep.x, nextStep.y)) {
         this.clickPath.shift();
+        this.rt.memory.subScript = [];
         const stepX = nextStep.x - this.rt.playerX;
         const stepY = nextStep.y - this.rt.playerY;
         void this.tryMove(stepX, stepY);
@@ -565,6 +583,7 @@ export class PlayScene extends Phaser.Scene {
     }
 
     this.moveLock = true;
+    this.isSleeping = false; // Manual movement or triggered movement interrupts sleep
 
     this.rt.playerX = nx;
     this.rt.playerY = ny;
@@ -608,12 +627,27 @@ export class PlayScene extends Phaser.Scene {
     }
 
     // Spontaneous LLM interaction trigger:
-    // In automode, trigger every 20 steps.
-    // In manualmode, trigger every 35 steps.
-    const steps = this.rt.memory.wanderSteps;
-    const triggerInterval = this.autonomousMode ? 20 : 35;
-    if (steps % triggerInterval === 0 && steps > 0) {
-      void this.triggerAutomaticLLMInteraction(cell.biomeId);
+    // Only trigger if enough time has elapsed since the last LLM call to avoid credit and visual spam
+    const elapsed = this.time.now - this.lastLlmInteractionTime;
+    const cfg = loadApiConfig();
+    const fidelity = cfg.fidelity || 'medium';
+    
+    let timeThreshold = this.autonomousMode ? 60000 : 90000; // 60s in auto, 90s in manual
+    let triggerInterval = this.autonomousMode ? 100 : 120;
+    
+    if (fidelity === 'easy') {
+      timeThreshold *= 2;
+      triggerInterval *= 2;
+    } else if (fidelity === 'heavy') {
+      timeThreshold /= 2;
+      triggerInterval = Math.max(20, Math.floor(triggerInterval / 2));
+    }
+
+    if (elapsed >= timeThreshold) {
+      const steps = this.rt.memory.wanderSteps;
+      if (steps % triggerInterval === 0 && steps > 0) {
+        void this.triggerAutomaticLLMInteraction(cell.biomeId);
+      }
     }
 
     // steps milestone: every 30 steps
@@ -904,6 +938,25 @@ export class PlayScene extends Phaser.Scene {
       cmpssStr = `CMPSS: ${relic.propId.replace('_', ' ').toUpperCase()} ${dirStr} (${relic.dist})`;
     }
 
+    // Calculate Latent Layer Activations representing the LLM's spatial hidden layers
+    const localDirs = [
+      { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
+      { dx: -1, dy: 0 },                     { dx: 1, dy: 0 },
+      { dx: -1, dy: 1 },  { dx: 0, dy: 1 },  { dx: 1, dy: 1 }
+    ];
+    const walkableCount = localDirs.filter(d => isWalkable(this.rt, this.rt.playerX + d.dx, this.rt.playerY + d.dy)).length;
+    const l_in = Math.round((walkableCount / 8) * 100);
+
+    const cell = getCell(this.rt, this.rt.playerX, this.rt.playerY);
+    const complexity = (cell.elevation || 0) + (cell.moisture || 0) + (cell.vegetation || 0) + (cell.weirdness || 0);
+    const l_hid = Math.min(100, Math.round((complexity / 4.0) * 100));
+
+    const l_out = Math.min(100, Math.round(
+      (mem.inspiration * 0.4) + 
+      (mem.entropy * 0.3) + 
+      (mem.creativity * 0.3)
+    ));
+
     const lines = [
       `=== ${this.rt.tokemon.name.toUpperCase()} ===`,
       `AWKN : ${levelStr}`,
@@ -921,7 +974,12 @@ export class PlayScene extends Phaser.Scene {
       `INSP : ${mem.inspiration.toFixed(0)}/100 (Novel)`,
       `ENTR : ${mem.entropy.toFixed(0)}/100 (Chaos)`,
       `CREA : ${mem.creativity.toFixed(0)}/100 (Drift)`,
-      `NRGY : ${mem.energy}/100 (Fuel)`
+      `NRGY : ${mem.energy}/100 (Fuel)`,
+      `----------------`,
+      `LATENT LAYER ACTIVATIONS:`,
+      `  L_IN (SPATIAL) : [${l_in}%]`,
+      `  L_HID(LATENT)  : [${l_hid}%]`,
+      `  L_OUT(ACTION)  : [${l_out}%]`
     );
 
     if (cmpssStr) {
@@ -935,29 +993,15 @@ export class PlayScene extends Phaser.Scene {
         : `F Auto ESC Talk B Build`
     );
 
-    this.hud.setText(lines.join('\n'));
+    const htmlContent = lines.map(line => {
+      if (line.includes('---')) return '<hr class="hud-divider" />';
+      return `<div class="hud-line">${line}</div>`;
+    }).join('');
 
-    // Draw the gorgeous retro translucent Game Boy DMG backplate card
-    this.hudBg.clear();
-    const x = 2;
-    const y = 2;
-    const w = 345;
-    
-    // Dynamic height calculation to avoid text clipping!
-    const h = 216 + (driveStr ? 16 : 0) + (cmpssStr ? 30 : 0);
-    
-    // Background: solid darkest Game Boy green with high opacity (0.85) to block terrain text clutter
-    this.hudBg.fillStyle(0x0f380f, 0.85);
-    this.hudBg.fillRoundedRect(x, y, w, h, 4);
-    
-    // Double retro borders:
-    // Outer border (lightest GB shade)
-    this.hudBg.lineStyle(2, 0xe8f0d0, 1);
-    this.hudBg.strokeRoundedRect(x, y, w, h, 4);
-    
-    // Inner border (muted light GB shade)
-    this.hudBg.lineStyle(1, 0x9bbc0f, 1);
-    this.hudBg.strokeRoundedRect(x + 3, y + 3, w - 6, h - 6, 2);
+    const contentEl = document.getElementById('stats-hud-content');
+    if (contentEl) {
+      contentEl.innerHTML = htmlContent;
+    }
   }
 
   private buildHudLine(): string {
@@ -985,6 +1029,7 @@ export class PlayScene extends Phaser.Scene {
     });
     
     const textHeight = Math.max(20, tempText.height);
+    tempText.destroy();
     const bubbleH = textHeight + T_PADDING * 2;
     const bubbleW = T_WIDTH;
 
@@ -1150,12 +1195,9 @@ export class PlayScene extends Phaser.Scene {
   }
 
   private async autonomousStep(): Promise<void> {
-    await this.updateSubconsciousness();
-
-    const subState = this.rt.memory.subState || 'curious';
-
     if (this.isSleeping) {
-      this.rt.memory.energy = Math.min(100, this.rt.memory.energy + 15);
+      this.autoMoveCooldown = 2000;
+      this.rt.memory.energy = Math.min(100, this.rt.memory.energy + 10);
       if (this.rt.memory.energy >= 100) {
         this.isSleeping = false;
         this.showSpeechBubble('*Wakes up and yawns* "I feel refreshed and ready to explore!"');
@@ -1180,8 +1222,13 @@ export class PlayScene extends Phaser.Scene {
       return;
     }
 
+    await this.updateSubconsciousness();
+
+    const subState = this.rt.memory.subState || 'curious';
+
     if (this.rt.memory.energy <= 0) {
       this.isSleeping = true;
+      this.autoMoveCooldown = 2000;
       this.showSpeechBubble(`*Falls asleep from exhaustion* "Zzz..."`);
       saveGame(this.rt);
       this.refreshHud();
@@ -1353,12 +1400,21 @@ export class PlayScene extends Phaser.Scene {
       ? scored[Math.floor(seedToFloat(this.rt.worldSeed ^ (this.rt.memory.wanderSteps * 59)) * scored.length)]!.candidate
       : scored[0]!.candidate;
 
-    // Apply slower cooldown if weary
+    // Organic, realistic autonomous pacing based on subconscious state
+    let pacingMs = 700; // default pacing is 700ms
     if (subState === 'weary') {
-      this.autoMoveCooldown = 1200;
-    } else {
-      this.autoMoveCooldown = 400;
+      pacingMs = 1200; // walks slowly when weary
+    } else if (subState === 'dreamy') {
+      pacingMs = 1500; // floats poetically when dreamy
+    } else if (subState === 'anxious') {
+      pacingMs = 950;  // moves cautiously when anxious
+    } else if (subState === 'adventurous') {
+      pacingMs = 450;  // sprints excitedly when adventurous
     }
+    
+    // Dynamic pacing variation based on local terrain complexity to simulate physical pacing
+    const rollVal = seededCellFloat(this.rt.worldSeed, px, py, this.rt.memory.wanderSteps);
+    this.autoMoveCooldown = Math.floor(pacingMs * (0.85 + rollVal * 0.3)); // 85% to 115% of pacingMs
 
     await this.tryMove(chosen.dx, chosen.dy);
   }
@@ -1368,6 +1424,14 @@ export class PlayScene extends Phaser.Scene {
     const py = this.rt.playerY;
     const bx = px + (this.faceDx || 0);
     const by = py + (this.faceDy || 1);
+
+    if (action.startsWith('WAIT_')) {
+      const ms = parseInt(action.substring(5));
+      if (!isNaN(ms)) {
+        this.autoMoveCooldown = ms;
+        return true;
+      }
+    }
 
     if (action === 'MOVE_N') {
       if (!isWalkable(this.rt, px, py - 1)) return false;
@@ -1416,7 +1480,10 @@ export class PlayScene extends Phaser.Scene {
       BUILD_SHRINE: 2,
       BUILD_HALL: 5,
       BUILD_TOWER: 6,
-      BUILD_WELL: 9
+      BUILD_FARM: 7,
+      BUILD_FENCE: 8,
+      BUILD_WELL: 9,
+      BUILD_PLAZA: 10
     };
     if (scriptBuildActions[action] != null) {
       const blockId = scriptBuildActions[action]!;
@@ -1485,6 +1552,18 @@ export class PlayScene extends Phaser.Scene {
         }
       }
       return false;
+    }
+    if (action === 'MEDITATE') {
+      this.rt.memory.energy = Math.min(100, this.rt.memory.energy + 15);
+      this.rt.memory.inspiration = Math.min(100, this.rt.memory.inspiration + 5);
+      this.showSpeechBubble(`*Meditating...* "+15 Energy, +5 Inspiration!"`);
+      recordEpisode(this.rt.memory, {
+        kind: 'reflection',
+        text: `Meditated deeply to restore internal balance. (Energy: ${this.rt.memory.energy}%)`
+      });
+      saveGame(this.rt);
+      this.refreshHud();
+      return true;
     }
     if (action === 'REST') {
       this.rt.memory.energy = Math.min(100, this.rt.memory.energy + 10);
@@ -1685,13 +1764,87 @@ ${memBlock}`;
     saveGame(this.rt);
   }
 
+  private generateSubScriptFormula(state: string, seedVal: number, px: number, py: number): string[] {
+    const formulas: Record<string, string[][]> = {
+      curious: [
+        ['WANDER', 'MOVE_N', 'WANDER', 'MOVE_E', 'TALK'],
+        ['MOVE_S', 'WANDER', 'MOVE_W', 'WANDER', 'EXPLORE'],
+        ['WANDER', 'EXPLORE', 'WANDER', 'TALK', 'WANDER']
+      ],
+      nostalgic: [
+        ['MEDITATE', 'WANDER', 'REST', 'WANDER', 'TALK'],
+        ['MOVE_W', 'MEDITATE', 'MOVE_E', 'REST', 'TALK'],
+        ['MEDITATE', 'REST', 'WANDER', 'MEDITATE', 'TALK']
+      ],
+      anxious: [
+        ['MEDITATE', 'BUILD_FENCE', 'REST', 'MOVE_N', 'MEDITATE'],
+        ['REST', 'MEDITATE', 'BUILD_PATH', 'REST', 'MOVE_S'],
+        ['MEDITATE', 'MOVE_W', 'REST', 'MOVE_E', 'MEDITATE']
+      ],
+      creative: [
+        ['BUILD_PATH', 'BUILD_FARM', 'BUILD_PATH', 'TALK', 'BUILD_COTTAGE'],
+        ['BUILD_PATH', 'BUILD_FENCE', 'BUILD_WELL', 'BUILD_PATH', 'TALK'],
+        ['BUILD_PATH', 'BUILD_PATH', 'BUILD_PLAZA', 'BUILD_SHRINE', 'WANDER']
+      ],
+      weary: [
+        ['MEDITATE', 'REST', 'MEDITATE', 'TALK', 'REST'],
+        ['REST', 'WANDER', 'MEDITATE', 'REST', 'MEDITATE'],
+        ['MEDITATE', 'MEDITATE', 'REST', 'MEDITATE', 'TALK']
+      ],
+      dreamy: [
+        ['TALK', 'MEDITATE', 'REST', 'TALK', 'WANDER'],
+        ['WANDER', 'TALK', 'MEDITATE', 'TALK', 'REST'],
+        ['TALK', 'REST', 'TALK', 'MEDITATE', 'REST']
+      ],
+      adventurous: [
+        ['EXPLORE', 'MOVE_N', 'MOVE_E', 'HARVEST', 'BUILD_FENCE'],
+        ['MOVE_S', 'MOVE_W', 'EXPLORE', 'HARVEST', 'MOVE_N'],
+        ['EXPLORE', 'HARVEST', 'EXPLORE', 'TALK', 'BUILD_FARM']
+      ],
+      social: [
+        ['WANDER', 'TALK', 'WANDER', 'TALK', 'MEDITATE'],
+        ['WANDER', 'WANDER', 'TALK', 'MEDITATE', 'TALK'],
+        ['TALK', 'WANDER', 'TALK', 'WANDER', 'REST']
+      ]
+    };
+
+    const patterns = formulas[state] || formulas.curious!;
+    // Incorporate coordinate variance into the choice to resolve unused parameters and add coordinate-based variety
+    const coordVar = Math.sin(px * 12.9898 + py * 78.233) * 43758.5453;
+    const finalSeed = Math.abs((seedVal + coordVar) % 1);
+    const patternIndex = Math.floor(finalSeed * patterns.length);
+    return [...patterns[patternIndex]!];
+  }
+
+  private postProcessScriptFormulas(script: string[]): string[] {
+    const processed: string[] = [];
+    const state = this.rt.memory.subState || 'curious';
+    
+    // Determine pacing duration based on subconscious state
+    let baseWait = 650;
+    if (state === 'weary') baseWait = 1100;
+    else if (state === 'anxious') baseWait = 850;
+    else if (state === 'dreamy') baseWait = 1300;
+    else if (state === 'adventurous') baseWait = 400;
+    
+    for (let i = 0; i < script.length; i++) {
+      const action = script[i]!;
+      processed.push(action);
+      
+      // Add a procedural wait timer after each action
+      // Make the timer slightly organic/dynamic based on action index and seed
+      const roll = seededCellFloat(this.rt.worldSeed, this.rt.playerX + i, this.rt.playerY - i, 50 + i);
+      const waitTime = Math.floor(baseWait * (0.8 + roll * 0.6)); // e.g. 80% to 140% of baseWait
+      processed.push(`WAIT_${waitTime}`);
+    }
+    return processed;
+  }
+
   private async updateSubconsciousness(): Promise<void> {
     const mem = this.rt.memory;
     const steps = mem.wanderSteps;
-    const shouldUpdate = !mem.subState || !mem.subScript || mem.subScript.length === 0 || (steps % 15 === 0);
+    const shouldUpdate = !mem.subState || !mem.subScript || mem.subScript.length === 0 || (steps % 80 === 0);
     if (!shouldUpdate) return;
-
-    this.lastLlmInteractionTime = this.time.now;
 
     const px = this.rt.playerX;
     const py = this.rt.playerY;
@@ -1699,14 +1852,37 @@ ${memBlock}`;
     const biome = cell.biomeId;
     const states = ['curious', 'nostalgic', 'anxious', 'creative', 'weary', 'dreamy', 'adventurous', 'social'] as const;
 
-    try {
-      const memBlock = formatMemoryForPrompt(mem, this.rt.tokemon.name, px, py, biome);
-      
-      const res = await chatCompletion({
-        messages: [
-          {
-            role: 'system',
-            content: `You are the subconscious mind of ${this.rt.tokemon.name}, a conscious procedural creature.
+    const elapsed = this.time.now - this.lastLlmInteractionTime;
+    const cfg = loadApiConfig();
+    const fidelity = cfg.fidelity || 'medium';
+    
+    let timeThreshold = 60000;
+    let stepInterval = 100;
+    
+    if (fidelity === 'easy') {
+      timeThreshold = 3000000;
+      stepInterval = 5000;
+    } else if (fidelity === 'medium') {
+      timeThreshold = 600000;
+      stepInterval = 1000;
+    }
+
+    // We only trigger an actual LLM API call for updating subconsciousness if:
+    // 1. It is the very first time (no subState set yet), OR
+    // 2. At least timeThreshold has elapsed since the last LLM call AND we are on a clean step interval.
+    // Otherwise, we skip the expensive API call and fall back to cheap, deterministic coordinate-hash seeded scripts!
+    const useLLM = !mem.subState || (elapsed >= timeThreshold && steps % stepInterval === 0);
+
+    if (useLLM) {
+      this.lastLlmInteractionTime = this.time.now;
+      try {
+        const memBlock = formatMemoryForPrompt(mem, this.rt.tokemon.name, px, py, biome);
+        
+        const res = await chatCompletion({
+          messages: [
+            {
+              role: 'system',
+              content: `You are the subconscious mind of ${this.rt.tokemon.name}, a conscious procedural creature.
 Your companion is wandering in ${biome} at coordinates (${px},${py}).
 You must decide its current internal subconscious DRIVE, a directive, a dynamic random roll (llmSeedRoll), and a sequence of 5 to 8 actions for its script queue.
 
@@ -1737,59 +1913,75 @@ Respond with exactly a JSON object in this format (no other text, markdown block
   "llmSeedRoll": 0.42,
   "behaviorScript": ["MOVE_N", "MOVE_N", "HARVEST", "MOVE_E", "REST"]
 }`
-          },
-          {
-            role: 'user',
-            content: `Update subconscious state at steps=${steps}, energy=${mem.energy}%, balance=${mem.llmBalance} Tokens. ${memBlock}`
-          }
-        ]
-      }, 3500); // Strict 3.5s timeout!
+            },
+            {
+              role: 'user',
+              content: `Update subconscious state at steps=${steps}, energy=${mem.energy}%, balance=${mem.llmBalance} Tokens. ${memBlock}`
+            }
+          ]
+        }, 3500); // Strict 3.5s timeout!
 
-      const reply = extractReply(res);
-      const cleaned = reply.replace(/```json/g, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(cleaned);
-      if (parsed && states.includes(parsed.state)) {
-        mem.subState = parsed.state;
-        mem.subDirective = parsed.directive || '';
-        mem.subThought = parsed.thought || '';
-        mem.llmSeedRoll = typeof parsed.llmSeedRoll === 'number' ? parsed.llmSeedRoll : 0.5;
-        this.audio.llmSeedRoll = mem.llmSeedRoll ?? 0.5;
-        mem.subScript = Array.isArray(parsed.behaviorScript) ? parsed.behaviorScript : [];
-        
-        recordEpisode(mem, {
-          kind: 'reflection',
-          text: `Subconscious Shift: Drive is now [${mem.subState!.toUpperCase()}] - "${mem.subThought}" (llmSeedRoll: ${mem.llmSeedRoll!.toFixed(2)}, script: ${mem.subScript!.join(', ')})`,
-          biome,
-          wx: px,
-          wy: py,
-        }, this.isNearShrine());
-        
-        saveGame(this.rt);
-        this.refreshHud();
-        return;
+        const reply = extractReply(res);
+        const cleaned = reply.replace(/```json/g, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+        if (parsed && states.includes(parsed.state)) {
+          mem.subState = parsed.state;
+          mem.subDirective = parsed.directive || '';
+          mem.subThought = parsed.thought || '';
+          mem.llmSeedRoll = typeof parsed.llmSeedRoll === 'number' ? parsed.llmSeedRoll : 0.5;
+          this.audio.llmSeedRoll = mem.llmSeedRoll ?? 0.5;
+          mem.subScript = this.postProcessScriptFormulas(
+            Array.isArray(parsed.behaviorScript) ? parsed.behaviorScript : []
+          );
+          
+          if (mem.llmSeedRoll >= 0.95) {
+            mintLLM(mem, 100, "Surge (Roll >= 0.95)");
+            this.showSpeechBubble(`*Surge!* "Rolled ${mem.llmSeedRoll.toFixed(2)}! +100 $LLM!"`);
+          } else if (mem.llmSeedRoll >= 0.90) {
+            mintLLM(mem, 50, "Spark (Roll >= 0.90)");
+            this.showSpeechBubble(`*Spark!* "Rolled ${mem.llmSeedRoll.toFixed(2)}! +50 $LLM!"`);
+          } else if (mem.llmSeedRoll <= 0.05) {
+            mem.energy = 100;
+            mem.inspiration = 100;
+            this.showSpeechBubble(`*Trance!* "Rolled ${mem.llmSeedRoll.toFixed(2)}! Energy & Inspiration Maxed!"`);
+          } else if (mem.llmSeedRoll <= 0.10) {
+            mem.energy = Math.min(100, mem.energy + 50);
+            this.showSpeechBubble(`*Magnet!* "Rolled ${mem.llmSeedRoll.toFixed(2)}! +50 Energy!"`);
+          }
+          
+          recordEpisode(mem, {
+            kind: 'reflection',
+            text: `Subconscious Shift: Drive is now [${mem.subState!.toUpperCase()}] - "${mem.subThought}" (llmSeedRoll: ${mem.llmSeedRoll!.toFixed(2)}, script: ${mem.subScript!.join(', ')})`,
+            biome,
+            wx: px,
+            wy: py,
+          }, this.isNearShrine());
+          
+          saveGame(this.rt);
+          this.refreshHud();
+          return;
+        }
+      } catch (e) {
+        console.warn('Subconscious API call failed or timed out. Falling back to deterministic coordinate-hash seed.', e);
       }
-    } catch (e) {
-      console.warn('Subconscious API call failed or timed out. Falling back to deterministic coordinate-hash seed.', e);
     }
 
-    const seedVal = seededCellFloat(this.rt.worldSeed, px, py, 99);
-    const mockState = states[Math.floor(seedVal * states.length)]!;
+    // Incorporate energy and step count to prevent static geographical traps (e.g. infinite REST/weary loops)
+    const seedVal = seededCellFloat(this.rt.worldSeed, px, py, 99 + mem.energy + steps);
+    
+    // Filter available states: fully charged creatures cannot have a 'weary' drive
+    let availableStates = [...states];
+    if (mem.energy >= 70) {
+      availableStates = availableStates.filter(s => s !== 'weary');
+    }
+    
+    const mockState = availableStates[Math.floor(seedVal * availableStates.length)]!;
     mem.subState = mockState;
     mem.llmSeedRoll = seedVal;
     this.audio.llmSeedRoll = seedVal;
 
-    const scriptLength = 5 + Math.floor(seedVal * 4); // 5 to 8 steps
-    const actionPool = [
-      'MOVE_N', 'MOVE_S', 'MOVE_E', 'MOVE_W',
-      'BUILD_PATH', 'BUILD_WELL', 'BUILD_SHRINE',
-      'HARVEST', 'REST', 'EXPLORE', 'TALK', 'WANDER'
-    ];
-    const script: string[] = [];
-    for (let i = 0; i < scriptLength; i++) {
-      const actSeed = seededCellFloat(this.rt.worldSeed, px + i, py - i, 100 + i);
-      script.push(actionPool[Math.floor(actSeed * actionPool.length)]!);
-    }
-    mem.subScript = script;
+    const rawScript = this.generateSubScriptFormula(mockState, seedVal, px, py);
+    mem.subScript = this.postProcessScriptFormulas(rawScript);
     
     const directives = {
       curious: 'Venture into the unexplored coordinates to capture novel grid energy.',
@@ -1814,10 +2006,25 @@ Respond with exactly a JSON object in this format (no other text, markdown block
 
     mem.subDirective = directives[mockState];
     mem.subThought = thoughts[mockState];
+    
+    if (mem.llmSeedRoll >= 0.95) {
+      mintLLM(mem, 100, "Surge (Roll >= 0.95)");
+      this.showSpeechBubble(`*Surge!* "Rolled ${mem.llmSeedRoll.toFixed(2)}! +100 $LLM!"`);
+    } else if (mem.llmSeedRoll >= 0.90) {
+      mintLLM(mem, 50, "Spark (Roll >= 0.90)");
+      this.showSpeechBubble(`*Spark!* "Rolled ${mem.llmSeedRoll.toFixed(2)}! +50 $LLM!"`);
+    } else if (mem.llmSeedRoll <= 0.05) {
+      mem.energy = 100;
+      mem.inspiration = 100;
+      this.showSpeechBubble(`*Trance!* "Rolled ${mem.llmSeedRoll.toFixed(2)}! Energy & Inspiration Maxed!"`);
+    } else if (mem.llmSeedRoll <= 0.10) {
+      mem.energy = Math.min(100, mem.energy + 50);
+      this.showSpeechBubble(`*Magnet!* "Rolled ${mem.llmSeedRoll.toFixed(2)}! +50 Energy!"`);
+    }
 
     recordEpisode(mem, {
       kind: 'reflection',
-      text: `Subconscious Shift (Deterministic): Drive is now [${mockState.toUpperCase()}] - "${mem.subThought}" (llmSeedRoll: ${seedVal.toFixed(2)}, script: ${script.join(', ')})`,
+      text: `Subconscious Shift (Deterministic): Drive is now [${mockState.toUpperCase()}] - "${mem.subThought}" (llmSeedRoll: ${seedVal.toFixed(2)}, script: ${mem.subScript.join(', ')})`,
       biome,
       wx: px,
       wy: py,
@@ -2011,7 +2218,12 @@ ${this.rt.tokemon.name}: "My code recognizes your pattern."`
     }
 
     const elapsed = this.time.now - this.lastLlmInteractionTime;
-    const interval = this.autonomousMode ? 25000 : 50000; // 25s in auto-mode, 50s in manual-mode
+    const cfg = loadApiConfig();
+    const fidelity = cfg.fidelity || 'medium';
+    
+    let interval = this.autonomousMode ? 60000 : 90000; // 60s in auto-mode, 90s in companion manual-mode
+    if (fidelity === 'easy') interval *= 50;
+    else if (fidelity === 'medium') interval *= 10;
 
     if (elapsed >= interval) {
       this.lastLlmInteractionTime = this.time.now;

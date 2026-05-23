@@ -100,7 +100,7 @@
         position: fixed;
         top: 8px;
         right: 8px;
-        z-index: 110;
+        z-index: 200; /* Dropdown stays above everything */
         display: flex;
         flex-direction: column;
         align-items: flex-end;
@@ -191,7 +191,7 @@
         background: rgba(26, 46, 26, 0.95);
         align-items: center;
         justify-content: center;
-        z-index: 200;
+        z-index: 250;
         backdrop-filter: blur(2px);
         padding: 16px;
       }
@@ -298,14 +298,21 @@
         background: #3a5a30;
         color: #d6deb8;
       }
+      :root {
+        --ui-font-size-scale: 1.0;
+      }
+      .hidden-scene {
+        display: none !important;
+      }
 
       /* Technical API Call Logs Panel */
       #api-log-panel {
         position: fixed;
         left: 12px;
         bottom: 12px;
-        width: min(320px, calc(100vw - 24px));
-        height: 220px;
+        top: 12px;
+        width: min(340px, calc(100vw - 24px));
+        height: calc(100dvh - 24px);
         background: #1a2e1a;
         border: 4px solid #1a2e1a;
         outline: 3px solid #3a5a30;
@@ -314,18 +321,20 @@
         display: flex;
         flex-direction: column;
         padding: 6px;
-        z-index: 100;
-        transition: height 0.15s steps(4);
+        z-index: 150; /* Overlaps stats-hud when open */
+        transition: height 0.15s steps(4), top 0.15s steps(4);
       }
       #api-log-panel.minimized {
+        top: auto;
         height: 42px;
+        z-index: 100;
       }
       #api-log-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
         padding: 6px 8px;
-        font-size: 8px;
+        font-size: calc(9px * var(--ui-font-size-scale, 1.0));
         background: #3a5a30;
         color: #d6deb8;
         border: 3px solid #1a2e1a;
@@ -336,10 +345,11 @@
       #api-log-minimize {
         background: #1a2e1a;
         color: #d6deb8;
-        font-size: 7px;
+        font-size: calc(8px * var(--ui-font-size-scale, 1.0));
         padding: 1px 5px;
         box-shadow: 1px 1px 0 #3a5a30;
         border: 2px solid #d6deb8 !important;
+        cursor: pointer;
       }
       .api-log-actions {
         display: flex;
@@ -348,17 +358,18 @@
       }
       .api-log-actions button {
         flex: 1;
-        font-size: 7px;
+        font-size: calc(9px * var(--ui-font-size-scale, 1.0));
         padding: 5px 6px;
         background: #3a5a30;
         color: #d6deb8;
         box-shadow: 1px 1px 0 #1a2e1a;
+        cursor: pointer;
       }
       #api-log-content {
         flex: 1;
         overflow-y: auto;
         padding: 6px;
-        font-size: 7px;
+        font-size: calc(10px * var(--ui-font-size-scale, 1.0));
         line-height: 1.4;
         background: #1a2e1a;
         color: #8a9a3e;
@@ -374,6 +385,7 @@
         color: #3a5a30;
         text-align: center;
         padding-top: 40px;
+        font-size: calc(9px * var(--ui-font-size-scale, 1.0));
       }
       .api-log-entry {
         border-bottom: 1px dashed #3a5a30;
@@ -381,6 +393,7 @@
         word-break: break-all;
         white-space: pre-wrap;
         font-family: monospace;
+        font-size: calc(10px * var(--ui-font-size-scale, 1.0));
       }
       .api-log-tx {
         color: #d6deb8;
@@ -394,64 +407,148 @@
         padding: 3px 6px;
         border-left: 3px solid #8a9a3e;
         margin-top: 4px;
+        font-size: calc(10px * var(--ui-font-size-scale, 1.0));
       }
-      /* ─── Chat Panel ─── */
-      #chat-panel {
+
+      /* ─── Stats HUD Panel ─── */
+      #stats-hud {
         position: fixed;
-        bottom: 12px;
-        right: 12px;
-        width: min(360px, calc(100vw - 24px));
-        max-height: 340px;
+        left: 12px;
+        top: 12px;
+        width: min(345px, calc(100vw - 24px));
         background: #1a2e1a;
         border: 4px solid #1a2e1a;
         outline: 3px solid #3a5a30;
         outline-offset: -7px;
         box-shadow: 6px 6px 0 #1a2e1a;
+        display: flex;
+        flex-direction: column;
+        padding: 6px;
+        z-index: 105; /* Under API log, under system menu */
+        transition: height 0.15s steps(4);
+      }
+      #stats-hud.minimized {
+        height: 42px;
+      }
+      #stats-hud-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 8px;
+        font-size: calc(9px * var(--ui-font-size-scale, 1.0));
+        background: #3a5a30;
+        color: #d6deb8;
+        border: 3px solid #1a2e1a;
+        margin-bottom: 4px;
+        cursor: pointer;
+        user-select: none;
+      }
+      #stats-hud-minimize {
+        background: #1a2e1a;
+        color: #d6deb8;
+        font-size: calc(8px * var(--ui-font-size-scale, 1.0));
+        padding: 1px 5px;
+        box-shadow: 1px 1px 0 #3a5a30;
+        border: 2px solid #d6deb8 !important;
+        cursor: pointer;
+      }
+      #stats-hud-content {
+        flex: 1;
+        padding: 6px;
+        background: #1a2e1a;
+        color: #e8f0d0;
+        border: 3px solid #1a2e1a;
+        overflow-y: auto;
+        font-family: 'Press Start 2P', monospace;
+      }
+      #stats-hud.minimized #stats-hud-content {
         display: none;
+      }
+      .hud-line {
+        padding: 3px 0;
+        font-size: calc(9px * var(--ui-font-size-scale, 1.0));
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .hud-divider {
+        border: none;
+        border-bottom: 1px dashed #3a5a30;
+        margin: 5px 0;
+      }
+
+      /* ─── Chat Panel ─── */
+      #chat-panel {
+        position: fixed;
+        bottom: 12px;
+        top: 45px;
+        right: 12px;
+        width: min(360px, calc(100vw - 24px));
+        height: auto;
+        background: #1a2e1a;
+        border: 4px solid #1a2e1a;
+        outline: 3px solid #3a5a30;
+        outline-offset: -7px;
+        box-shadow: 6px 6px 0 #1a2e1a;
+        display: flex;
         flex-direction: column;
         z-index: 120;
-        font-size: 9px;
+        transition: height 0.15s steps(4), top 0.15s steps(4);
       }
-      #chat-panel.open {
-        display: flex;
+      #chat-panel.minimized {
+        height: 42px;
+        top: auto;
       }
       #chat-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
         padding: 8px 10px;
-        font-size: 8px;
+        font-size: calc(9px * var(--ui-font-size-scale, 1.0));
         background: #3a5a30;
         color: #d6deb8;
         border: 3px solid #1a2e1a;
         margin: 4px;
+        cursor: pointer;
         user-select: none;
       }
       #chat-header span {
         letter-spacing: 1px;
       }
-      #chat-close {
-        font-size: 7px;
+      #chat-minimize {
+        font-size: calc(8px * var(--ui-font-size-scale, 1.0));
         padding: 3px 8px;
         background: #1a2e1a;
         color: #d6deb8;
         border: 2px solid #d6deb8 !important;
         box-shadow: 1px 1px 0 #3a5a30;
+        cursor: pointer;
       }
       #chat-log {
         flex: 1;
         min-height: 80px;
-        max-height: 200px;
         overflow-y: auto;
         padding: 8px;
         color: #8a9a3e;
         line-height: 1.5;
+      }
+      #chat-panel.minimized #chat-log {
+        display: none;
+      }
+      #chat-input-row {
+        display: flex;
+        gap: 6px;
+        padding: 6px 8px 8px;
+      }
+      #chat-panel.minimized #chat-input-row {
+        display: none;
       }
       .chat-line {
         padding: 4px 6px;
         margin-bottom: 4px;
         word-break: break-word;
         white-space: pre-wrap;
+        font-size: calc(9px * var(--ui-font-size-scale, 1.0));
       }
       .chat-user {
         color: #d6deb8;
@@ -491,7 +588,7 @@
   <body>
     <div id="game-root"></div>
     <div id="ui-layer">
-      <div id="system-menu-container">
+      <div id="system-menu-container" class="hidden-scene">
         <button type="button" id="system-menu-toggle">SYSTEM ☰</button>
         <div id="system-menu-panel" class="hidden">
           <button type="button" id="api-settings-open">API CONFIG (P)</button>
@@ -526,6 +623,14 @@
               spellcheck="false"
             />
           </div>
+          <div class="api-field" id="api-fidelity-row">
+            <label for="api-fidelity">Fidelity Level</label>
+            <select id="api-fidelity">
+              <option value="easy">Easy (Low AI Frequency)</option>
+              <option value="medium">Medium (Balanced)</option>
+              <option value="heavy">Heavy (High AI Frequency)</option>
+            </select>
+          </div>
           <div id="api-status">Not configured</div>
           <div class="api-row">
             <button type="button" id="api-key-save">SAVE</button>
@@ -536,10 +641,21 @@
         </div>
       </div>
       <div id="build-hint" class="hidden">BUILD - 1-9 select / Q-R cycle / E or click place / DEL clear / B exit</div>
-      <div id="chat-panel">
+      
+      <!-- Stats HUD Panel -->
+      <div id="stats-hud" class="minimized hidden-scene">
+        <div id="stats-hud-header">
+          <span>STATS</span>
+          <button type="button" id="stats-hud-minimize">OPEN</button>
+        </div>
+        <div id="stats-hud-content"></div>
+      </div>
+
+      <!-- Chat Panel -->
+      <div id="chat-panel" class="minimized hidden-scene">
         <div id="chat-header">
           <span>TOKEMON CHAT (ESC)</span>
-          <button type="button" id="chat-close">ESC</button>
+          <button type="button" id="chat-minimize">OPEN</button>
         </div>
         <div id="chat-log"></div>
         <div id="chat-input-row">
@@ -547,8 +663,9 @@
           <button type="button" id="chat-send">SEND</button>
         </div>
       </div>
+
       <!-- Retro diagnostic API log panel -->
-      <div id="api-log-panel" class="minimized">
+      <div id="api-log-panel" class="minimized hidden-scene">
         <div id="api-log-header">
           <span>API CALL LOGS</span>
           <button type="button" id="api-log-minimize">OPEN</button>

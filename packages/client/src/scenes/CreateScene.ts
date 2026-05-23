@@ -22,6 +22,14 @@ export class CreateScene extends Phaser.Scene {
   private backdrop?: Phaser.GameObjects.Graphics;
   private stage?: Phaser.GameObjects.Graphics;
   private copyPanels?: Phaser.GameObjects.Graphics;
+  private clouds: { graphics: Phaser.GameObjects.Graphics; x: number; y: number; speed: number; scale: number }[] = [];
+  private rings: { graphics: Phaser.GameObjects.Graphics; radius: number; alpha: number }[] = [];
+  
+  private titleText!: Phaser.GameObjects.Text;
+  private titleShadow!: Phaser.GameObjects.Text;
+  private hint!: Phaser.GameObjects.Text;
+  private previewSprite?: Phaser.GameObjects.Image;
+  private timeElapsed = 0;
 
   constructor() {
     super({ key: 'Create' });
@@ -30,46 +38,58 @@ export class CreateScene extends Phaser.Scene {
   create(): void {
     this.beginning = false;
     this.previewSprite = undefined;
+    this.timeElapsed = 0;
+    this.clouds = [];
+    this.rings = [];
+    
     this.input.keyboard?.removeAllListeners();
     this.cameras.main.setBackgroundColor(GB.darkest);
-    const cx = this.scale.width / 2;
-    const cy = this.scale.height / 2;
+    
     this.hasSave = loadGame() != null;
     this.drawBackdrop();
 
-    this.add
-      .text(cx + 2, Math.max(24, cy - 230) + 2, 'CREATE TOKEMON', {
+    const { width, height } = this.scale;
+    const cx = width / 2;
+    
+    const titleY = Math.max(24, height * 0.1);
+    
+    this.titleShadow = this.add
+      .text(cx + 2, titleY + 2, 'CREATE TOKEMON', {
         fontFamily: '"Press Start 2P", monospace',
         fontSize: '20px',
         color: '#0f380f',
       })
       .setOrigin(0.5, 0);
 
-    this.add
-      .text(cx, Math.max(24, cy - 230), 'CREATE TOKEMON', {
+    this.titleText = this.add
+      .text(cx, titleY, 'CREATE TOKEMON', {
         fontFamily: '"Press Start 2P", monospace',
         fontSize: '20px',
         color: '#e8f0d0',
       })
       .setOrigin(0.5, 0);
 
+    const hintY = height * 0.7;
+
     this.hint = this.add
-      .text(cx, Math.max(180, cy - 8), '', {
+      .text(cx, hintY, '', {
         fontFamily: '"Press Start 2P", monospace',
         fontSize: '12px',
         color: '#e8f0d0',
         stroke: '#0f380f',
         strokeThickness: 4,
         align: 'center',
-        wordWrap: { width: Math.min(720, this.scale.width - 80) },
+        wordWrap: { width: Math.min(720, width - 80) },
       })
       .setDepth(2)
       .setOrigin(0.5, 0);
 
     this.refreshPreview();
 
+    const controlsY = height * 0.9;
+
     this.controls = this.add
-      .text(cx, Math.min(this.scale.height - 36, cy + 220), this.controlsText(), {
+      .text(cx, controlsY, this.controlsText(), {
         fontFamily: '"Press Start 2P", monospace',
         fontSize: '12px',
         color: '#e8f0d0',
@@ -92,21 +112,88 @@ export class CreateScene extends Phaser.Scene {
       this.controls.setText(this.controlsText());
       this.hint.setText('Save cleared.');
     });
+
+    this.scale.on('resize', this.handleResize, this);
   }
 
-  private hint!: Phaser.GameObjects.Text;
-  private previewSprite?: Phaser.GameObjects.Image;
+  private handleResize(gameSize: Phaser.Structs.Size): void {
+    this.cameras.resize(gameSize.width, gameSize.height);
+    this.drawBackdrop();
+    
+    const { width, height } = gameSize;
+    const cx = width / 2;
+    
+    const titleY = Math.max(24, height * 0.1);
+    this.titleShadow.setPosition(cx + 2, titleY + 2);
+    this.titleText.setPosition(cx, titleY);
+    
+    const hintY = height * 0.7;
+    this.hint.setPosition(cx, hintY);
+    this.hint.setStyle({ wordWrap: { width: Math.min(720, width - 80) }});
+    
+    const controlsY = height * 0.9;
+    this.controls.setPosition(cx, controlsY);
+    
+    const previewY = height * 0.4;
+    if (this.previewSprite) {
+      this.previewSprite.setPosition(cx, previewY);
+    }
+  }
+
+  update(_time: number, delta: number): void {
+    this.timeElapsed += delta;
+    const { width, height } = this.scale;
+    const cx = width / 2;
+    const previewY = height * 0.4;
+
+    // Floating sprite
+    if (this.previewSprite) {
+      const floatOffset = Math.sin(this.timeElapsed / 500) * 8;
+      this.previewSprite.y = previewY + floatOffset;
+    }
+
+    // Move clouds
+    for (const cloud of this.clouds) {
+      cloud.x += cloud.speed * (delta / 16);
+      if (cloud.x > width + 100) {
+        cloud.x = -100;
+        cloud.y = Math.random() * height * 0.5;
+      }
+      cloud.graphics.setPosition(cloud.x, cloud.y);
+    }
+
+    // Expanding rings
+    for (const ring of this.rings) {
+      ring.radius += delta * 0.05;
+      ring.alpha -= delta * 0.0005;
+      
+      if (ring.alpha <= 0 || ring.radius > 200) {
+        ring.radius = 50;
+        ring.alpha = 0.6;
+      }
+      
+      ring.graphics.clear();
+      ring.graphics.lineStyle(2, 0xe8f0d0, ring.alpha);
+      ring.graphics.strokeCircle(cx, previewY, ring.radius);
+    }
+  }
 
   private drawBackdrop(): void {
     this.backdrop?.destroy();
     this.stage?.destroy();
     this.copyPanels?.destroy();
+    
+    // Clear old rings and clouds graphics
+    this.clouds.forEach(c => c.graphics.destroy());
+    this.rings.forEach(r => r.graphics.destroy());
+    this.clouds = [];
+    this.rings = [];
 
     const { width, height } = this.scale;
     const cx = width / 2;
-    const cy = height / 2;
-    const titleY = Math.max(24, cy - 230);
-    const previewY = Math.max(96, cy - 120);
+    
+    const titleY = Math.max(24, height * 0.1);
+    const previewY = height * 0.4;
     const platformY = previewY + 74;
 
     const g = this.add.graphics().setDepth(-10);
@@ -139,6 +226,29 @@ export class CreateScene extends Phaser.Scene {
       g.fillStyle(0x0f380f, 1).fillRect(x + 6, y + 6, 4, 22);
     }
 
+    // Clouds
+    for (let i = 0; i < 4; i++) {
+      const cg = this.add.graphics().setDepth(-9);
+      cg.fillStyle(0xe8f0d0, 0.3);
+      cg.fillCircle(0, 0, 20);
+      cg.fillCircle(15, -10, 25);
+      cg.fillCircle(30, 0, 20);
+      cg.fillCircle(15, 10, 15);
+      
+      const cx_cloud = Math.random() * width;
+      const cy_cloud = Math.random() * height * 0.4;
+      cg.setPosition(cx_cloud, cy_cloud);
+      
+      this.clouds.push({
+        graphics: cg,
+        x: cx_cloud,
+        y: cy_cloud,
+        speed: 0.2 + Math.random() * 0.5,
+        scale: 0.5 + Math.random() * 0.5
+      });
+      cg.setScale(this.clouds[this.clouds.length-1].scale);
+    }
+
     const s = this.add.graphics().setDepth(-1);
     this.stage = s;
     s.fillStyle(0x0f380f, 0.45).fillRoundedRect(cx - 150, previewY - 78, 300, 205, 8);
@@ -149,27 +259,37 @@ export class CreateScene extends Phaser.Scene {
     s.fillStyle(0x0f380f, 0.55).fillEllipse(cx, platformY, 176, 30);
     s.fillStyle(0xe8f0d0, 0.42).fillEllipse(cx, platformY - 3, 122, 16);
 
-    const hintY = Math.max(174, cy - 14);
-    const controlsY = Math.min(height - 46, cy + 210);
+    // Initial rings
+    for (let i = 0; i < 2; i++) {
+      const rg = this.add.graphics().setDepth(0);
+      this.rings.push({
+        graphics: rg,
+        radius: 50 + i * 75,
+        alpha: 0.6 - i * 0.3
+      });
+    }
+
+    const hintY = height * 0.7;
+    const controlsY = height * 0.9;
     const p = this.add.graphics().setDepth(1);
     this.copyPanels = p;
-    p.fillStyle(0x0f380f, 0.72).fillRoundedRect(cx - 390, hintY, 780, 88, 8);
-    p.lineStyle(1, 0xe8f0d0, 0.45).strokeRoundedRect(cx - 390, hintY, 780, 88, 8);
-    p.fillStyle(0x0f380f, 0.82).fillRoundedRect(cx - 430, controlsY, 860, 36, 6);
-    p.lineStyle(1, 0x9bbc0f, 0.5).strokeRoundedRect(cx - 430, controlsY, 860, 36, 6);
+    p.fillStyle(0x0f380f, 0.72).fillRoundedRect(cx - 390, hintY - 14, 780, 100, 8);
+    p.lineStyle(1, 0xe8f0d0, 0.45).strokeRoundedRect(cx - 390, hintY - 14, 780, 100, 8);
+    p.fillStyle(0x0f380f, 0.82).fillRoundedRect(cx - 430, controlsY - 10, 860, 36, 6);
+    p.lineStyle(1, 0x9bbc0f, 0.5).strokeRoundedRect(cx - 430, controlsY - 10, 860, 36, 6);
   }
 
   private refreshPreview(): void {
     const cx = this.scale.width / 2;
-    const cy = this.scale.height / 2;
+    const previewY = this.scale.height * 0.4;
     const tokemon = createTokemon(this.tokemonSeed);
+    
     if (this.textures.exists(this.previewKey)) this.textures.remove(this.previewKey);
     try {
-      if (this.textures.exists(this.previewKey)) this.textures.remove(this.previewKey);
       const canvas = bakeTokemonCanvas(tokemon.genes, 72);
       this.textures.addCanvas(this.previewKey, canvas);
       if (!this.previewSprite) {
-        this.previewSprite = this.add.image(cx, Math.max(96, cy - 120), this.previewKey).setOrigin(0.5);
+        this.previewSprite = this.add.image(cx, previewY, this.previewKey).setOrigin(0.5);
       } else {
         this.previewSprite.setTexture(this.previewKey);
       }

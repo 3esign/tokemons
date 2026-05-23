@@ -40,7 +40,7 @@ export class ChatPanel {
     this.el = document.getElementById('chat-panel')!;
     this.logEl = document.getElementById('chat-log')!;
     this.inputEl = document.getElementById('chat-input') as HTMLInputElement;
-    document.getElementById('chat-close')?.addEventListener('click', () => this.hide());
+    document.getElementById('chat-minimize')?.addEventListener('click', () => this.toggle());
     document.getElementById('chat-send')?.addEventListener('click', () => void this.send());
     this.inputEl.addEventListener('keydown', (e) => {
       e.stopPropagation();
@@ -50,21 +50,31 @@ export class ChatPanel {
   }
 
   show(): void {
-    this.el.classList.add('open');
+    this.el.classList.remove('minimized');
+    const minBtn = document.getElementById('chat-minimize');
+    if (minBtn) minBtn.textContent = 'HIDE';
     this.inputEl.focus();
   }
 
   hide(): void {
-    this.el.classList.remove('open');
+    this.el.classList.add('minimized');
+    const minBtn = document.getElementById('chat-minimize');
+    if (minBtn) minBtn.textContent = 'OPEN';
   }
 
   isOpen(): boolean {
-    return this.el.classList.contains('open');
+    return !this.el.classList.contains('minimized');
   }
 
   toggle(): void {
-    if (this.el.classList.contains('open')) this.hide();
+    if (this.isOpen()) this.hide();
     else this.show();
+  }
+
+  focus(): void {
+    if (this.isOpen()) {
+      this.inputEl.focus();
+    }
   }
 
   beginBackgroundTurn(): boolean {
@@ -160,6 +170,7 @@ export class ChatPanel {
     }
     
     this.busy = true;
+    this.rt.memory.subScript = []; // Command Preemption for manual input
     this.inputEl.value = '';
     this.appendPublic('user', text);
     this.history.push({ role: 'user', content: text });

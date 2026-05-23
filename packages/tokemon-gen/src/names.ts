@@ -23,6 +23,9 @@ const TRAIT_WORDS: Record<string, string[]> = {
   plant: ['rooted', 'blossom', 'verdant'],
   biped: ['upright', 'watchful', 'stride'],
   quadruped: ['grounded', 'pack', 'steady'],
+  mech: ['cybernetic', 'geared', 'steely'],
+  spectral: ['incorporeal', 'ghastly', 'shadowy'],
+  crustacean: ['shelled', 'clawed', 'calcified'],
 };
 
 export function generateName(seed: number): string {

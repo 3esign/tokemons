@@ -49,7 +49,8 @@ function drawPattern(
   genes: TokemonGenes,
   px: number,
   c2: string,
-  c3: string
+  c3: string,
+  c0: string
 ) {
   fill(ctx, genes.pattern === 'gradient' ? c3 : c2);
   if (genes.pattern === 'spots') {
@@ -78,6 +79,35 @@ function drawPattern(
       rf(ctx, 0, y, px, 1);
     }
     ctx.globalAlpha = 1;
+  } else if (genes.pattern === 'zigzag') {
+    fill(ctx, c2);
+    for (let y = 4; y < px - 4; y += 6) {
+      ctx.beginPath();
+      ctx.moveTo(2, y);
+      ctx.lineTo(px / 2, y + 3);
+      ctx.lineTo(px - 2, y);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = c2;
+      ctx.stroke();
+    }
+  } else if (genes.pattern === 'fractal') {
+    fill(ctx, c2);
+    rf(ctx, px / 4, px / 4, px / 2, px / 2);
+    fill(ctx, c3);
+    rf(ctx, px / 3, px / 3, px / 3, px / 3);
+    fill(ctx, c0);
+    rf(ctx, px / 2 - 1, px / 2 - 1, 2, 2);
+  } else if (genes.pattern === 'camo') {
+    const count = 3 + (genes.seed % 4);
+    for (let i = 0; i < count; i++) {
+      fill(ctx, i % 2 === 0 ? c2 : c3);
+      const cx = Math.floor(seedToFloat(genes.seed ^ (i * 22)) * (px - 8)) + 4;
+      const cy = Math.floor(seedToFloat(genes.seed ^ (i * 47)) * (px - 8)) + 4;
+      const r = 2 + (i % 3);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 }
 
@@ -153,7 +183,8 @@ function drawTail(
   cx: number,
   cy: number,
   c1: string,
-  c2: string
+  c2: string,
+  c3: string
 ) {
   if (genes.tailType === 'none') return;
   fill(ctx, c1);
@@ -198,6 +229,46 @@ function drawTail(
     ctx.lineTo(cx + 1.5, cy + 2);
     ctx.closePath();
     ctx.fill();
+  } else if (genes.tailType === 'club') {
+    ctx.strokeStyle = c2;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + 2);
+    ctx.quadraticCurveTo(cx - 3, cy + 6, cx - 1, cy + 10);
+    ctx.stroke();
+    fill(ctx, c3);
+    ctx.beginPath();
+    ctx.arc(cx - 1, cy + 11, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (genes.tailType === 'split') {
+    fill(ctx, c1);
+    ctx.beginPath();
+    ctx.moveTo(cx - 1, cy + 2);
+    ctx.lineTo(cx - 5, cy + 9);
+    ctx.lineTo(cx - 3, cy + 9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx + 1, cy + 2);
+    ctx.lineTo(cx + 5, cy + 9);
+    ctx.lineTo(cx + 3, cy + 9);
+    ctx.closePath();
+    ctx.fill();
+  } else if (genes.tailType === 'feathered') {
+    fill(ctx, c2);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + 2);
+    ctx.lineTo(cx - 4, cy + 8);
+    ctx.lineTo(cx, cy + 6);
+    ctx.lineTo(cx + 4, cy + 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = c3;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + 2);
+    ctx.lineTo(cx, cy + 10);
+    ctx.stroke();
   }
 }
 
@@ -762,6 +833,165 @@ export function bakeTokemonCanvas(genes: TokemonGenes, size = 32): HTMLCanvasEle
     // Inner pistil seeds/details
     fill(ctx, c0);
     rf(ctx, cx - 1, cy - bodyH * 0.25 - 1, 2, 2);
+  } else if (plan === 'mech') {
+    // hex/octagonal robot outline, joint rivets, and glowing mechanical center.
+    const drawMech = () => {
+      ctx.moveTo(cx - bodyW * 0.4, cy - bodyH * 0.65);
+      ctx.lineTo(cx + bodyW * 0.4, cy - bodyH * 0.65);
+      ctx.lineTo(cx + bodyW * 0.7, cy - bodyH * 0.2);
+      ctx.lineTo(cx + bodyW * 0.7, cy + bodyH * 0.2);
+      ctx.lineTo(cx + bodyW * 0.4, cy + bodyH * 0.65);
+      ctx.lineTo(cx - bodyW * 0.4, cy + bodyH * 0.65);
+      ctx.lineTo(cx - bodyW * 0.7, cy + bodyH * 0.2);
+      ctx.lineTo(cx - bodyW * 0.7, cy - bodyH * 0.2);
+      ctx.closePath();
+    };
+
+    fill(ctx, c1);
+    ctx.beginPath();
+    drawMech();
+    ctx.fill();
+
+    // Metallic panel shading
+    ctx.save();
+    ctx.beginPath();
+    drawMech();
+    ctx.clip();
+    fill(ctx, c2);
+    ctx.beginPath();
+    ctx.rect(cx - bodyW * 0.2, cy, bodyW, bodyH);
+    ctx.fill();
+    ctx.restore();
+
+    // Joint rivets
+    fill(ctx, c3);
+    rf(ctx, cx - bodyW * 0.35, cy - bodyH * 0.5, 1.5, 1.5);
+    rf(ctx, cx + bodyW * 0.25, cy - bodyH * 0.5, 1.5, 1.5);
+    rf(ctx, cx - bodyW * 0.35, cy + bodyH * 0.4, 1.5, 1.5);
+    rf(ctx, cx + bodyW * 0.25, cy + bodyH * 0.4, 1.5, 1.5);
+
+    // Glowing core reactor
+    fill(ctx, c3);
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(3, bodyW * 0.25), 0, Math.PI * 2);
+    ctx.fill();
+    fill(ctx, c0);
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(1, bodyW * 0.15), 0, Math.PI * 2);
+    ctx.fill();
+
+    // Outline
+    ctx.strokeStyle = c3;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    drawMech();
+    ctx.stroke();
+  } else if (plan === 'spectral') {
+    // wispy, curved tapering phantom body with float aura.
+    const drawSpectral = () => {
+      ctx.moveTo(cx - bodyW * 0.6, cy - bodyH * 0.5);
+      ctx.bezierCurveTo(cx - bodyW * 0.6, cy - bodyH * 1.1, cx + bodyW * 0.6, cy - bodyH * 1.1, cx + bodyW * 0.6, cy - bodyH * 0.5);
+      ctx.quadraticCurveTo(cx + bodyW * 0.6, cy + bodyH * 0.2, cx, cy + bodyH * 0.85);
+      ctx.quadraticCurveTo(cx - bodyW * 0.15, cy + bodyH * 0.5, cx - bodyW * 0.2, cy + bodyH * 0.2);
+      ctx.quadraticCurveTo(cx - bodyW * 0.6, cy + bodyH * 0.1, cx - bodyW * 0.6, cy - bodyH * 0.5);
+      ctx.closePath();
+    };
+
+    fill(ctx, c1);
+    ctx.beginPath();
+    drawSpectral();
+    ctx.fill();
+
+    // Concentric wisps
+    ctx.save();
+    ctx.beginPath();
+    drawSpectral();
+    ctx.clip();
+    fill(ctx, c2);
+    ctx.beginPath();
+    ctx.ellipse(cx + bodyW * 0.1, cy + bodyH * 0.1, bodyW * 0.45, bodyH * 0.45, 0, 0, Math.PI * 2);
+    ctx.fill();
+    fill(ctx, c0);
+    ctx.beginPath();
+    ctx.ellipse(cx - bodyW * 0.15, cy - bodyH * 0.2, bodyW * 0.2, bodyH * 0.2, Math.PI / 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Outline
+    ctx.strokeStyle = c3;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    drawSpectral();
+    ctx.stroke();
+
+    // Floating spirit sparkles
+    fill(ctx, c0);
+    ctx.globalAlpha = 0.45;
+    rf(ctx, cx - bodyW * 0.8, cy + bodyH * 0.4, 2, 2);
+    rf(ctx, cx + bodyW * 0.7, cy - bodyH * 0.6, 2, 2);
+    rf(ctx, cx - bodyW * 0.2, cy - bodyH * 1.1, 2, 2);
+    ctx.globalAlpha = 1;
+  } else if (plan === 'crustacean') {
+    // segmented crab/lobster body plates and dual sharp claws.
+    const drawCrustacean = () => {
+      ctx.ellipse(cx, cy, bodyW * 0.7, bodyH * 0.5, 0, 0, Math.PI * 2);
+    };
+
+    fill(ctx, c1);
+    ctx.beginPath();
+    drawCrustacean();
+    ctx.fill();
+
+    ctx.save();
+    ctx.beginPath();
+    drawCrustacean();
+    ctx.clip();
+    fill(ctx, c2);
+    ctx.beginPath();
+    ctx.ellipse(cx + bodyW * 0.1, cy + bodyH * 0.1, bodyW * 0.7, bodyH * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Segmented plating lines
+    ctx.strokeStyle = c3;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - bodyW, cy - bodyH * 0.15);
+    ctx.lineTo(cx + bodyW, cy - bodyH * 0.15);
+    ctx.moveTo(cx - bodyW, cy + bodyH * 0.15);
+    ctx.lineTo(cx + bodyW, cy + bodyH * 0.15);
+    ctx.stroke();
+    ctx.restore();
+
+    // Outline
+    ctx.strokeStyle = c3;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    drawCrustacean();
+    ctx.stroke();
+
+    // Left claw
+    fill(ctx, c2);
+    ctx.beginPath();
+    ctx.moveTo(cx - bodyW * 0.6, cy);
+    ctx.quadraticCurveTo(cx - bodyW * 1.1, cy - bodyH * 0.4, cx - bodyW * 0.9, cy - bodyH * 0.85);
+    ctx.lineTo(cx - bodyW * 0.6, cy - bodyH * 0.45);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = c3;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    
+    // Right claw
+    fill(ctx, c2);
+    ctx.beginPath();
+    ctx.moveTo(cx + bodyW * 0.6, cy);
+    ctx.quadraticCurveTo(cx + bodyW * 1.1, cy - bodyH * 0.4, cx + bodyW * 0.9, cy - bodyH * 0.85);
+    ctx.lineTo(cx + bodyW * 0.6, cy - bodyH * 0.45);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = c3;
+    ctx.lineWidth = 1;
+    ctx.stroke();
   } else {
     // Default Biped/Quadruped chunky core outline & shading
     const drawDefault = () => {
@@ -809,19 +1039,52 @@ export function bakeTokemonCanvas(genes: TokemonGenes, size = 32): HTMLCanvasEle
     ctx.globalAlpha = 1;
   }
 
+  // 3 New surfaces: slimy, metallic, armored overlays
+  if (genes.surface === 'slimy') {
+    fill(ctx, c0);
+    rf(ctx, cx - bodyW * 0.3, cy + bodyH * 0.45, 2, 3);
+    rf(ctx, cx + bodyW * 0.2, cy + bodyH * 0.5, 2, 4);
+    fill(ctx, c2);
+    rf(ctx, cx - bodyW * 0.3, cy + bodyH * 0.45 + 3, 2, 1);
+    rf(ctx, cx + bodyW * 0.2, cy + bodyH * 0.5 + 4, 2, 1);
+  }
+
+  if (genes.surface === 'metallic') {
+    fill(ctx, c0);
+    ctx.beginPath();
+    ctx.moveTo(cx - bodyW * 0.4, cy - bodyH * 0.3);
+    ctx.lineTo(cx + bodyW * 0.3, cy - bodyH * 0.3);
+    ctx.lineTo(cx - bodyW * 0.3, cy + bodyH * 0.3);
+    ctx.closePath();
+    ctx.globalAlpha = 0.4;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  if (genes.surface === 'armored') {
+    ctx.strokeStyle = c3;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - bodyW * 0.4, cy - bodyH * 0.2);
+    ctx.lineTo(cx + bodyW * 0.4, cy - bodyH * 0.2);
+    ctx.moveTo(cx - bodyW * 0.5, cy + bodyH * 0.1);
+    ctx.lineTo(cx + bodyW * 0.5, cy + bodyH * 0.1);
+    ctx.stroke();
+  }
+
   // =========================================================================
   // LAYER 5: Noise & Modulations (Organic Texture & Patterns)
   // Mask patterns (spots, stripes, rings, checkers, gradients) to body template
   // =========================================================================
   ctx.globalCompositeOperation = 'source-atop';
-  drawPattern(ctx, genes, px, c2, c3);
+  drawPattern(ctx, genes, px, c2, c3, c0);
   ctx.globalCompositeOperation = 'source-over';
 
   // =========================================================================
   // LAYER 6: Entity / Structure Composition (Depth-Sorted Assembly)
   // Drawing Layer: 3. Foreground attachments and facial overlays
   // =========================================================================
-  drawTail(ctx, genes, cx, cy, c1, c2);
+  drawTail(ctx, genes, cx, cy, c1, c2, c3);
 
   // =========================================================================
   // LAYER 3: Objects on Instances (Appendages & scattered micro-objects)

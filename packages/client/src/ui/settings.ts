@@ -2,6 +2,7 @@ import { chatCompletion, extractReply } from '../lib/api.js';
 import {
   type ApiConfig,
   type ProviderId,
+  type FidelityLevel,
   PROVIDER_PRESETS,
   clearApiConfig,
   configSummary,
@@ -18,6 +19,7 @@ export class ApiSettingsPanel {
   private baseUrlInput: HTMLInputElement;
   private modelInput: HTMLInputElement;
   private keyInput: HTMLInputElement;
+  private fidelitySelect: HTMLSelectElement;
   private keyRow: HTMLElement;
   private hintEl: HTMLElement;
 
@@ -28,6 +30,7 @@ export class ApiSettingsPanel {
     this.baseUrlInput = document.getElementById('api-base-url') as HTMLInputElement;
     this.modelInput = document.getElementById('api-model') as HTMLInputElement;
     this.keyInput = document.getElementById('api-key-input') as HTMLInputElement;
+    this.fidelitySelect = document.getElementById('api-fidelity') as HTMLSelectElement;
     this.keyRow = document.getElementById('api-key-row')!;
     this.hintEl = document.getElementById('api-provider-hint')!;
 
@@ -51,6 +54,7 @@ export class ApiSettingsPanel {
     this.baseUrlInput.addEventListener('keydown', stopProp);
     this.modelInput.addEventListener('keydown', stopProp);
     this.keyInput.addEventListener('keydown', stopProp);
+    this.fidelitySelect.addEventListener('keydown', stopProp);
 
     this.panel.addEventListener('pointerdown', (e) => {
       if (e.target === this.panel) this.hide();
@@ -93,6 +97,7 @@ export class ApiSettingsPanel {
     this.baseUrlInput.value = cfg.baseUrl;
     this.modelInput.value = cfg.model;
     this.keyInput.value = cfg.apiKey;
+    this.fidelitySelect.value = cfg.fidelity || 'medium';
     this.onProviderChange(false);
   }
 
@@ -102,6 +107,7 @@ export class ApiSettingsPanel {
       baseUrl: this.baseUrlInput.value.trim(),
       model: this.modelInput.value.trim(),
       apiKey: this.keyInput.value.trim(),
+      fidelity: this.fidelitySelect.value as FidelityLevel,
     };
   }
 
@@ -165,6 +171,7 @@ export class ApiSettingsPanel {
       baseUrl: p.baseUrl,
       model: p.defaultModel,
       apiKey: '',
+      fidelity: 'medium',
     });
     this.refreshStatus();
   }

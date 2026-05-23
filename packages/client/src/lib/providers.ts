@@ -10,6 +10,7 @@ export type ProviderId =
   | 'custom';
 
 export type ApiStyle = 'openai' | 'ollama';
+export type FidelityLevel = 'easy' | 'medium' | 'heavy';
 
 export interface ProviderPreset {
   id: ProviderId;
@@ -26,6 +27,7 @@ export interface ApiConfig {
   baseUrl: string;
   model: string;
   apiKey: string;
+  fidelity: FidelityLevel;
 }
 
 export const PROVIDER_PRESETS: ProviderPreset[] = [
@@ -122,7 +124,11 @@ export function getPreset(id: ProviderId): ProviderPreset {
 export function loadApiConfig(): ApiConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as ApiConfig;
+    if (raw) {
+      const parsed = JSON.parse(raw) as ApiConfig;
+      if (!parsed.fidelity) parsed.fidelity = 'medium';
+      return parsed;
+    }
     const legacy = localStorage.getItem(LEGACY_KEY)?.trim();
     if (legacy) {
       const cfg: ApiConfig = {
@@ -130,6 +136,7 @@ export function loadApiConfig(): ApiConfig {
         baseUrl: 'https://openrouter.ai/api/v1',
         model: 'openrouter/auto',
         apiKey: legacy,
+        fidelity: 'medium',
       };
       saveApiConfig(cfg);
       return cfg;
@@ -143,6 +150,7 @@ export function loadApiConfig(): ApiConfig {
     baseUrl: p.baseUrl,
     model: p.defaultModel,
     apiKey: '',
+    fidelity: 'medium',
   };
 }
 
