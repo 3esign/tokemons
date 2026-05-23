@@ -1,39 +1,85 @@
 /**
- * ProceduralAudio – lo-fi ambient engine for Tokemons.
+ * ProceduralAudio – lo-fi ambient and rhythmic engine for Tokemons.
  *
- * Biome drones are built from oscillator stacks derived deterministically
- * from worldSeed and the biome string; only Math.random() is used for the
- * one-shot footstep noise buffer (not world-affecting).
+ * Synthesizes a legendary, seamless lo-fi Spanish Bolero track in real-time.
+ * Tracks feature a warm vinyl crackle underlay, a syncopated bolero kick/rimshot
+ * drum pattern with swinging shaker triplets, a warm low-passed Andalusia chord pad,
+ * and a generative, modal whistle/flute melody that adapts to the active biome.
  */
 
-// Pentatonic / modal scale intervals (semitones from root)
-const BIOME_SCALES: Record<string, number[]> = {
-  grassland:     [0, 2, 4, 7, 9],       // pentatonic major
-  forest:        [0, 2, 3, 5, 7, 8],    // natural minor
-  deep_forest:   [0, 1, 3, 5, 7],       // phrygian
-  mountain:      [0, 2, 4, 5, 9],       // sparse lydian
-  desert:        [0, 1, 4, 5, 8],       // exotic / double harmonic
-  wetland:       [0, 3, 5, 7, 10],      // dorian / minor 7th
-  ocean:         [0, 2, 4, 7, 11],      // major 7th open
-  town_core:     [0, 4, 7, 9],          // major + 6th
-  ancient_ruins: [0, 2, 3, 7, 8],       // mixed mode
-  crystal_caves: [0, 1, 6, 7],          // tritone shimmer
-  void:          [0, 6],                 // tritone only
-};
+// Midi pitch helper
+function getMidiFreq(midi: number): number {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
 
-// Root frequencies (Hz) per biome
-const BIOME_ROOT_HZ: Record<string, number> = {
-  grassland:     220.00,   // A3
-  forest:        196.00,   // G3
-  deep_forest:   164.81,   // E3
-  mountain:      174.61,   // F3
-  desert:        207.65,   // Ab3
-  wetland:       185.00,   // F#3
-  ocean:         246.94,   // B3
-  town_core:     261.63,   // C4
-  ancient_ruins: 138.59,   // C#3
-  crystal_caves: 293.66,   // D4
-  void:          110.00,   // A2
+// Chord progressions (MIDI note numbers) per biome
+const BIOME_PROGRESSIONS: Record<string, number[][]> = {
+  grassland: [
+    [48, 60, 64, 67, 71], // Cmaj7
+    [45, 57, 60, 64, 67], // Am7
+    [50, 62, 65, 69, 72], // Dm7
+    [43, 55, 59, 62, 65], // G7
+  ],
+  forest: [
+    [45, 57, 60, 64, 67], // Am7
+    [43, 55, 59, 62, 66], // Gmaj7
+    [41, 53, 57, 60, 64], // Fmaj7
+    [40, 52, 56, 59, 62], // E7 (Andalusia progression!)
+  ],
+  deep_forest: [
+    [40, 52, 55, 59, 62], // Em7
+    [38, 50, 54, 57, 60], // D7
+    [36, 48, 52, 55, 59], // Cmaj7
+    [35, 47, 51, 54, 58], // B7b9
+  ],
+  mountain: [
+    [43, 55, 59, 62, 66], // Gmaj7 (Lydian feel)
+    [45, 57, 61, 64, 68], // Amaj7
+    [47, 59, 62, 66, 69], // Bm7
+    [42, 54, 57, 61, 64], // F#m7
+  ],
+  desert: [
+    [50, 62, 65, 69, 72], // Dm7
+    [51, 63, 67, 70, 74], // Ebmaj7 (Phrygian Flamenco dominant vibe!)
+    [41, 53, 57, 60, 64], // Fmaj7
+    [40, 52, 56, 59, 63], // Emaj7
+  ],
+  wetland: [
+    [47, 59, 62, 66, 69], // Bm7 (Dorian lounge)
+    [40, 52, 56, 59, 62], // E7
+    [45, 57, 61, 64, 68], // Amaj7
+    [42, 54, 58, 61, 64], // F#7
+  ],
+  ocean: [
+    [45, 57, 61, 64, 68], // Amaj7 (Dreamy ocean swell)
+    [47, 59, 64, 66, 69], // B7sus4
+    [49, 61, 64, 68, 71], // C#m7
+    [40, 52, 56, 59, 61], // E6
+  ],
+  town_core: [
+    [48, 60, 64, 67, 71], // Cmaj7 (Happy village vibe)
+    [41, 53, 57, 60, 64], // Fmaj7
+    [45, 57, 60, 64, 67], // Am7
+    [43, 55, 59, 62, 65], // G7
+  ],
+  ancient_ruins: [
+    [50, 62, 65, 69],     // Dm
+    [48, 60, 64, 67],     // C
+    [46, 58, 62, 65],     // Bb
+    [45, 57, 61, 64],     // A (Epic scale!)
+  ],
+  crystal_caves: [
+    [42, 54, 57, 60, 64], // F#m7b5 (Sparkling shimmer)
+    [47, 59, 63, 66, 69], // B7
+    [40, 52, 55, 59, 62], // Em7
+    [48, 60, 64, 66, 71], // Cmaj7#11
+  ],
+  void: [
+    [38, 50, 53, 56, 59], // Ddim7 (Eerie tritone loop)
+    [44, 56, 59, 62, 65], // Abdim7
+    [38, 50, 53, 56, 59],
+    [44, 56, 59, 62, 65],
+  ],
 };
 
 /** Fast deterministic hash → [0,1) */
@@ -45,25 +91,26 @@ function seededFloat(seed: number): number {
   return (s >>> 0) / 0xffffffff;
 }
 
-function biomeKey(biome: string): string {
-  return BIOME_SCALES[biome] ? biome : 'grassland';
-}
-
-interface DroneVoice {
-  osc: OscillatorNode;
-  lfo: OscillatorNode;
-  gain: GainNode;
+function getBiomeProgression(biome: string): number[][] {
+  return BIOME_PROGRESSIONS[biome] ? BIOME_PROGRESSIONS[biome]! : BIOME_PROGRESSIONS.grassland!;
 }
 
 export class ProceduralAudio {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
-  private reverbNode: ConvolverNode | null = null;
-  private voices: DroneVoice[] = [];
-  private currentBiome = '';
+  private mainFilter: BiquadFilterNode | null = null;
   private worldSeed = 0;
   private started = false;
   private muted = false;
+  private currentBiome = 'grassland';
+
+  // Sequencer clock variables
+  private intervalId: any = null;
+  private nextNoteTime = 0.0;
+  private stepIndex = 0;
+  private chordIndex = 0;
+  private lastMelodyPitch = 60;
+  private activeOscillators: AudioNode[] = [];
 
   /** Call once, triggered by a user gesture. */
   start(worldSeed: number): void {
@@ -72,41 +119,54 @@ export class ProceduralAudio {
     this.started = true;
     try {
       this.ctx = new AudioContext();
+      
+      // Warm master filter for retro vintage lo-fi warmth
+      this.mainFilter = this.ctx.createBiquadFilter();
+      this.mainFilter.type = 'lowpass';
+      this.mainFilter.frequency.setValueAtTime(1400, this.ctx.currentTime);
+      this.mainFilter.Q.setValueAtTime(1.0, this.ctx.currentTime);
+
       this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.setValueAtTime(0.22, this.ctx.currentTime);
+      // Balanced ambient volume
+      this.masterGain.gain.setValueAtTime(0.24, this.ctx.currentTime);
 
-      // Tiny lo-fi reverb via two comb-like delay lines
-      this.reverbNode = this.buildReverb(this.ctx);
-      const reverbGain = this.ctx.createGain();
-      reverbGain.gain.setValueAtTime(0.18, this.ctx.currentTime);
-      this.reverbNode.connect(reverbGain);
-      reverbGain.connect(this.ctx.destination);
-
+      this.mainFilter.connect(this.masterGain);
       this.masterGain.connect(this.ctx.destination);
+
+      // Start the sequencer clock
+      this.nextNoteTime = this.ctx.currentTime + 0.1;
+      this.stepIndex = 0;
+      this.chordIndex = 0;
+      this.intervalId = setInterval(() => this.scheduler(), 80);
+
     } catch (e) {
       console.warn('[audio] Web Audio unavailable', e);
     }
   }
 
-  /** Switch biome; cross-fades over ~3 s. */
+  /** Switch biome; seamlessly adjusts progressions on next bar. */
   updateBiome(biome: string): void {
-    if (biome === this.currentBiome || !this.ctx || !this.masterGain) return;
+    if (!BIOME_PROGRESSIONS[biome]) return;
+    if (biome === this.currentBiome) return;
     this.currentBiome = biome;
-    this.crossfadeToNewDrone(biome);
+
+    // Fast-resume in case browser suspended context
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
   }
 
-  /** Short, biome-coloured footstep click. */
+  /** soft retro footsteps thud click */
   playFootstep(biome: string): void {
     if (!this.ctx || !this.masterGain || this.muted) return;
     const t = this.ctx.currentTime;
     const sampleRate = this.ctx.sampleRate;
 
-    // Noise burst – lo-fi thud
-    const len = Math.floor(sampleRate * 0.04);
+    const len = Math.floor(sampleRate * 0.035);
     const buf = this.ctx.createBuffer(1, len, sampleRate);
     const data = buf.getChannelData(0);
     for (let i = 0; i < len; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 5);
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 6);
     }
 
     const src = this.ctx.createBufferSource();
@@ -114,17 +174,11 @@ export class ProceduralAudio {
 
     const lpf = this.ctx.createBiquadFilter();
     lpf.type = 'lowpass';
-    // Lower cutoff for damp biomes, higher for dry ones
-    lpf.frequency.setValueAtTime(
-      biome === 'ocean' || biome === 'wetland' ? 280 :
-      biome === 'mountain' ? 450 :
-      biome === 'crystal_caves' ? 900 : 600,
-      t
-    );
+    lpf.frequency.setValueAtTime(biome === 'desert' ? 450 : 250, t);
 
     const g = this.ctx.createGain();
-    g.gain.setValueAtTime(0.28, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+    g.gain.setValueAtTime(0.12, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
 
     src.connect(lpf);
     lpf.connect(g);
@@ -136,108 +190,288 @@ export class ProceduralAudio {
     this.muted = v === 0;
     if (this.masterGain && this.ctx) {
       this.masterGain.gain.setValueAtTime(
-        Math.max(0, Math.min(1, v)),
+        Math.max(0, Math.min(1, v * 0.24)),
         this.ctx.currentTime
       );
     }
   }
 
   dispose(): void {
-    this.voices.forEach(v => {
-      try { v.osc.stop(); } catch {}
-      try { v.lfo.stop(); } catch {}
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    this.activeOscillators.forEach(n => {
+      try { (n as any).stop(); } catch {}
+      try { n.disconnect(); } catch {}
     });
-    this.voices = [];
+    this.activeOscillators = [];
     this.ctx?.close().catch(() => {});
   }
 
-  // ─── private ──────────────────────────────────────────────────────────────
+  // ─── scheduler & synthesis ──────────────────────────────────────────────────
 
-  private crossfadeToNewDrone(biome: string): void {
-    if (!this.ctx || !this.masterGain) return;
-    const t = this.ctx.currentTime;
-    const fadeOut = 2.5;
+  private scheduler(): void {
+    if (!this.ctx || !this.started) return;
+    
+    // Look ahead 250ms and schedule beats
+    const lookAhead = 0.25;
+    while (this.nextNoteTime < this.ctx.currentTime + lookAhead) {
+      this.scheduleStep(this.stepIndex, this.nextNoteTime);
+      
+      // Advance to next 16th note step at 82 BPM
+      const stepDuration = (60 / 82) / 4;
+      this.nextNoteTime += stepDuration;
+      this.stepIndex = (this.stepIndex + 1) % 16;
+    }
+  }
 
-    // Ramp old voices out then stop them
-    const oldVoices = this.voices;
-    oldVoices.forEach(v => {
-      v.gain.gain.setValueAtTime(v.gain.gain.value, t);
-      v.gain.gain.linearRampToValueAtTime(0, t + fadeOut);
-      v.osc.stop(t + fadeOut + 0.1);
-      v.lfo.stop(t + fadeOut + 0.1);
-    });
-    this.voices = [];
+  private scheduleStep(step: number, time: number): void {
+    if (this.muted || !this.ctx || !this.mainFilter) return;
 
-    // Build new voices
-    const key = biomeKey(biome);
-    const scale = BIOME_SCALES[key]!;
-    const rootHz = BIOME_ROOT_HZ[key]!;
+    // 1. Tape/Vinyl Crackle pops (Random lo-fi pops)
+    const seedVal = seededFloat(this.worldSeed ^ (step * 881) ^ Math.floor(time));
+    if (seedVal < 0.28) {
+      this.playVinylCrackle(time, seedVal);
+    }
 
-    // Three voices: root, 3rd scale degree, 5th scale degree
-    const voiceIntervals = [
-      scale[0]!,
-      scale[Math.floor(scale.length * 0.4)]!,
-      scale[Math.floor(scale.length * 0.75)]!,
-    ];
+    // 2. Bolero lofi drums
+    // Step 0: Kick (Strong)
+    // Step 3: Shaker/Hat triplet accent
+    // Step 4: Rimshot + soft Kick (Beat 2)
+    // Step 6: soft Kick
+    // Step 8: Kick (Strong, Beat 3)
+    // Step 10: soft Kick
+    // Step 11: Shaker/Hat triplet accent
+    // Step 12: Rimshot (Beat 4)
+    if (step === 0 || step === 8) {
+      this.synthesizeKick(time, 0.45);
+    } else if (step === 4) {
+      this.synthesizeRimshot(time, 0.25);
+      this.synthesizeKick(time, 0.20);
+    } else if (step === 6 || step === 10) {
+      this.synthesizeKick(time, 0.18);
+    } else if (step === 12) {
+      this.synthesizeRimshot(time, 0.32);
+    }
 
-    const targets = this.reverbNode
-      ? [this.masterGain, this.reverbNode as unknown as AudioNode]
-      : [this.masterGain];
+    // Swinging lo-fi shakers/hi-hats
+    if (step % 2 === 0) {
+      // Steady eighth-note shakers
+      this.synthesizeShaker(time, step === 0 || step === 8 ? 0.08 : 0.05);
+    } else if (step === 3 || step === 11) {
+      // Dotted swing shaker accents for that legendary bolero triplet sway
+      this.synthesizeShaker(time, 0.04);
+    }
 
-    voiceIntervals.forEach((semitone, i) => {
-      if (!this.ctx) return;
-      const freq = rootHz * Math.pow(2, semitone / 12);
-      const s1 = seededFloat(this.worldSeed ^ (i * 31337) ^ biome.charCodeAt(0) * 7);
-      const s2 = seededFloat(this.worldSeed ^ (i * 99991) ^ biome.charCodeAt(0) * 13);
+    // Get current progression
+    const progression = getBiomeProgression(this.currentBiome);
+    const chord = progression[this.chordIndex % progression.length]!;
+
+    // 3. Warm Andalusia Chord Pad swell (Starts at beginning of bar: step === 0)
+    if (step === 0) {
+      this.synthesizeChord(time, chord);
+      this.chordIndex = (this.chordIndex + 1) % progression.length;
+    }
+
+    // 4. Generative Lo-fi Melody Whistle (Triangle tape lead)
+    // Melody notes play syncopatedly: steps 0, 3, 6, 8, 11, 14
+    const isMelodyStep = step === 0 || step === 3 || step === 6 || step === 8 || step === 11 || step === 14;
+    const melodyChance = seededFloat(this.worldSeed ^ (step * 997) ^ (this.chordIndex * 13));
+    if (isMelodyStep && melodyChance < 0.45) {
+      // Pick a chord tone, transpose up to high register, and play it step-wise
+      const randomNoteIdx = Math.floor(melodyChance * chord.length);
+      let targetMidi = chord[randomNoteIdx]! + 24; // octave transpose
+      
+      // Step-wise melodic smoothing
+      if (Math.abs(targetMidi - this.lastMelodyPitch) > 7) {
+        targetMidi = this.lastMelodyPitch + (targetMidi > this.lastMelodyPitch ? 2 : -2);
+      }
+      this.lastMelodyPitch = targetMidi;
+      
+      this.synthesizeMelody(time, getMidiFreq(targetMidi));
+    }
+  }
+
+  // ─── synthesizers ───────────────────────────────────────────────────────────
+
+  private synthesizeKick(time: number, volume: number): void {
+    if (!this.ctx || !this.mainFilter) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.connect(gain);
+    gain.connect(this.mainFilter);
+
+    osc.frequency.setValueAtTime(110, time);
+    osc.frequency.exponentialRampToValueAtTime(42, time + 0.14);
+
+    gain.gain.setValueAtTime(volume, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.16);
+
+    osc.start(time);
+    osc.stop(time + 0.17);
+  }
+
+  private synthesizeRimshot(time: number, volume: number): void {
+    if (!this.ctx || !this.mainFilter) return;
+    const bufferSize = this.ctx.sampleRate * 0.07;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(850, time);
+    filter.Q.setValueAtTime(4.0, time);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(volume, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.065);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.mainFilter);
+
+    noise.start(time);
+    noise.stop(time + 0.075);
+  }
+
+  private synthesizeShaker(time: number, volume: number): void {
+    if (!this.ctx || !this.mainFilter) return;
+    const bufferSize = this.ctx.sampleRate * 0.025;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(6500, time);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(volume, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.022);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.mainFilter);
+
+    noise.start(time);
+    noise.stop(time + 0.025);
+  }
+
+  private playVinylCrackle(time: number, seedVal: number): void {
+    if (!this.ctx || !this.mainFilter) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(7500 + seedVal * 3000, time);
+
+    gain.gain.setValueAtTime(0.007 * seedVal, time);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.004);
+
+    osc.connect(gain);
+    gain.connect(this.mainFilter);
+
+    osc.start(time);
+    osc.stop(time + 0.005);
+  }
+
+  private synthesizeChord(time: number, midiPitches: number[]): void {
+    if (!this.ctx || !this.mainFilter) return;
+    const stepDuration = (60 / 82) / 4;
+    const chordDuration = stepDuration * 15.6; // seamlessly overlap to next bar
+
+    midiPitches.forEach((midi, idx) => {
+      if (!this.ctx || !this.mainFilter) return;
+      const freq = getMidiFreq(midi);
 
       const osc = this.ctx.createOscillator();
-      osc.type = i === 0 ? 'sine' : i === 1 ? 'triangle' : 'sine';
-      // Subtle lo-fi detune per voice
-      osc.frequency.setValueAtTime(freq * (1 + (s1 - 0.5) * 0.018), t + fadeOut);
+      const gain = this.ctx.createGain();
 
-      // Slow breath-like LFO
-      const lfo = this.ctx.createOscillator();
-      lfo.frequency.setValueAtTime(0.15 + s2 * 0.6, t);
-      const lfoGain = this.ctx.createGain();
-      lfoGain.gain.setValueAtTime(freq * 0.004, t);
-      lfo.connect(lfoGain);
-      lfoGain.connect(osc.frequency);
+      // Soft mix of sine and triangle waves for vintage lo-fi warmth
+      osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
+      
+      // Detune slightly for lush chorused tape-wow effect
+      const chorusedFreq = freq * (1 + (seededFloat(this.worldSeed ^ idx ^ midi) - 0.5) * 0.004);
+      osc.frequency.setValueAtTime(chorusedFreq, time);
 
-      // Lo-fi lowpass (warm, slightly dark)
-      const lpf = this.ctx.createBiquadFilter();
-      lpf.type = 'lowpass';
-      lpf.frequency.setValueAtTime(600 + i * 300 + s1 * 200, t);
-      lpf.Q.setValueAtTime(1.2, t);
+      // Dedicated vocal-like lo-fi lowpass per chord voice
+      const voiceFilter = this.ctx.createBiquadFilter();
+      voiceFilter.type = 'lowpass';
+      voiceFilter.frequency.setValueAtTime(260 + idx * 75, time);
+      voiceFilter.Q.setValueAtTime(0.8, time);
 
-      const gainNode = this.ctx.createGain();
-      const targetVol = i === 0 ? 0.55 : i === 1 ? 0.32 : 0.18;
-      gainNode.gain.setValueAtTime(0, t + fadeOut);
-      gainNode.gain.linearRampToValueAtTime(targetVol, t + fadeOut + 3.5);
+      // Slow, beautiful swell (envelope)
+      gain.gain.setValueAtTime(0.0, time);
+      gain.gain.linearRampToValueAtTime(0.12, time + 0.8);
+      gain.gain.setValueAtTime(0.12, time + chordDuration - 0.6);
+      gain.gain.linearRampToValueAtTime(0.0, time + chordDuration);
 
-      osc.connect(lpf);
-      lpf.connect(gainNode);
-      targets.forEach(dest => gainNode.connect(dest as AudioNode));
+      osc.connect(voiceFilter);
+      voiceFilter.connect(gain);
+      gain.connect(this.mainFilter);
 
-      osc.start(t + fadeOut);
-      lfo.start(t);
+      osc.start(time);
+      osc.stop(time + chordDuration + 0.1);
 
-      this.voices.push({ osc, lfo, gain: gainNode });
+      this.activeOscillators.push(osc);
     });
   }
 
-  /** Simple impulse-based reverb using a short noise tail. */
-  private buildReverb(ctx: AudioContext): ConvolverNode {
-    const node = ctx.createConvolver();
-    const sampleRate = ctx.sampleRate;
-    const length = sampleRate * 1.2; // 1.2 s tail
-    const buf = ctx.createBuffer(2, length, sampleRate);
-    for (let c = 0; c < 2; c++) {
-      const d = buf.getChannelData(c);
-      for (let i = 0; i < length; i++) {
-        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 2.5);
-      }
-    }
-    node.buffer = buf;
-    return node;
+  private synthesizeMelody(time: number, frequency: number): void {
+    if (!this.ctx || !this.mainFilter) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(frequency, time);
+
+    // Warm retro whistle tape vibrato (LFO)
+    const lfo = this.ctx.createOscillator();
+    lfo.frequency.setValueAtTime(5.4 + seededFloat(this.worldSeed ^ Math.floor(frequency)) * 1.5, time);
+    const lfoGain = this.ctx.createGain();
+    lfoGain.gain.setValueAtTime(frequency * 0.006, time);
+
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+
+    // Whistle lowpass filtering
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(800, time);
+
+    // Length of note
+    const stepDuration = (60 / 82) / 4;
+    const duration = stepDuration * 2.2; // beautiful legato duration
+
+    gain.gain.setValueAtTime(0.0, time);
+    gain.gain.linearRampToValueAtTime(0.075, time + 0.06);
+    gain.gain.setValueAtTime(0.075, time + duration - 0.06);
+    gain.gain.linearRampToValueAtTime(0.0, time + duration);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.mainFilter);
+
+    osc.start(time);
+    lfo.start(time);
+    
+    osc.stop(time + duration + 0.1);
+    lfo.stop(time + duration + 0.1);
+
+    this.activeOscillators.push(osc);
+    this.activeOscillators.push(lfo);
   }
 }
