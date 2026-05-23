@@ -142,7 +142,7 @@ export function drawWorld(
       const bk = blockKey(wx, wy);
       const blockId = rt.placedBlocks.get(bk);
       if (blockId != null) {
-        drawBuildBlock(g, blockId, drawX, drawY, tilePx, timeMs);
+        drawBuildBlock(g, blockId, drawX, drawY, tilePx, timeMs, wx, wy, rt.worldSeed);
       }
     }
   }

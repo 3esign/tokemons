@@ -3,8 +3,9 @@
  *
  * Synthesizes a legendary, seamless lo-fi Spanish Bolero track in real-time.
  * Tracks feature a warm vinyl crackle underlay, a syncopated bolero kick/rimshot
- * drum pattern with swinging shaker triplets, a warm low-passed Andalusia chord pad,
- * and a generative, modal whistle/flute melody that adapts to the active biome.
+ * drum pattern, warm bongos/congas, guiro sweeps, arpeggiated physical-model nylon
+ * guitar chord sweeps, a syncopated walking tresillo double bass, and a breathy,
+ * expressive wooden Spanish flute lead with portamento and vibrato.
  */
 
 // Midi pitch helper
@@ -103,6 +104,7 @@ export class ProceduralAudio {
   private started = false;
   private muted = false;
   private currentBiome = 'grassland';
+  public llmSeedRoll = 0.5;
 
   // Sequencer clock variables
   private intervalId: any = null;
@@ -110,6 +112,7 @@ export class ProceduralAudio {
   private stepIndex = 0;
   private chordIndex = 0;
   private lastMelodyPitch = 60;
+  private lastFluteFreq = 440;
   private activeOscillators: AudioNode[] = [];
 
   /** Call once, triggered by a user gesture. */
@@ -123,8 +126,8 @@ export class ProceduralAudio {
       // Warm master filter for retro vintage lo-fi warmth
       this.mainFilter = this.ctx.createBiquadFilter();
       this.mainFilter.type = 'lowpass';
-      this.mainFilter.frequency.setValueAtTime(1400, this.ctx.currentTime);
-      this.mainFilter.Q.setValueAtTime(1.0, this.ctx.currentTime);
+      this.mainFilter.frequency.setValueAtTime(1300, this.ctx.currentTime);
+      this.mainFilter.Q.setValueAtTime(0.8, this.ctx.currentTime);
 
       this.masterGain = this.ctx.createGain();
       // Balanced ambient volume
@@ -186,6 +189,36 @@ export class ProceduralAudio {
     src.start(t);
   }
 
+  /** procedural retro sweet bell chime */
+  playChime(): void {
+    if (!this.ctx || !this.masterGain || this.muted) return;
+    const t = this.ctx.currentTime;
+    
+    const osc = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, t); // A5
+    osc.frequency.exponentialRampToValueAtTime(1320, t + 0.15); // E6
+
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(1760, t); // A6
+    osc2.frequency.exponentialRampToValueAtTime(2640, t + 0.25);
+
+    gain.gain.setValueAtTime(0.08, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+
+    osc.connect(gain);
+    osc2.connect(gain);
+    gain.connect(this.masterGain);
+
+    osc.start(t);
+    osc2.start(t);
+    osc.stop(t + 0.5);
+    osc2.stop(t + 0.5);
+  }
+
   setVolume(v: number): void {
     this.muted = v === 0;
     if (this.masterGain && this.ctx) {
@@ -229,72 +262,124 @@ export class ProceduralAudio {
   private scheduleStep(step: number, time: number): void {
     if (this.muted || !this.ctx || !this.mainFilter) return;
 
-    // 1. Tape/Vinyl Crackle pops (Random lo-fi pops)
+    const stepDuration = (60 / 82) / 4;
+
+    // 1. Vinyl/Tape Crackle & Pop Noise (Random background lofi crackle)
     const seedVal = seededFloat(this.worldSeed ^ (step * 881) ^ Math.floor(time));
-    if (seedVal < 0.28) {
+    if (seedVal < 0.32) {
       this.playVinylCrackle(time, seedVal);
     }
 
-    // 2. Bolero lofi drums
-    // Step 0: Kick (Strong)
-    // Step 3: Shaker/Hat triplet accent
-    // Step 4: Rimshot + soft Kick (Beat 2)
-    // Step 6: soft Kick
+    // 2. Syncopated Bolero Lofi Drum Pattern
+    // Step 0: Kick (Strong, Beat 1)
+    // Step 4: Rimshot + Soft Kick (Beat 2)
+    // Step 6: Soft Kick (Anticipated passing kick)
     // Step 8: Kick (Strong, Beat 3)
-    // Step 10: soft Kick
-    // Step 11: Shaker/Hat triplet accent
+    // Step 10: Soft Kick
     // Step 12: Rimshot (Beat 4)
     if (step === 0 || step === 8) {
-      this.synthesizeKick(time, 0.45);
+      this.synthesizeKick(time, 0.42);
     } else if (step === 4) {
       this.synthesizeRimshot(time, 0.25);
-      this.synthesizeKick(time, 0.20);
-    } else if (step === 6 || step === 10) {
       this.synthesizeKick(time, 0.18);
+    } else if (step === 6 || step === 10) {
+      this.synthesizeKick(time, 0.16);
     } else if (step === 12) {
-      this.synthesizeRimshot(time, 0.32);
+      this.synthesizeRimshot(time, 0.30);
     }
 
-    // Swinging lo-fi shakers/hi-hats
+    // 3. Organic Latin Percussion
+    // Guiro scraper on Step 3 and Step 11 (Adds that signature bolero rhythm)
+    if (step === 3 || step === 11) {
+      this.synthesizeGuiro(time, stepDuration * 1.6, 0.08);
+    }
+
+    // Syncopated Bongos/Congas hand drum accents
+    // Play high/low congas on offbeats to elevate the live ensemble vibe
+    if (step === 2 || step === 10 || step === 14) {
+      this.synthesizeConga(time, 'high', step === 2 ? 0.12 : 0.08);
+    } else if (step === 6 || step === 13) {
+      this.synthesizeConga(time, 'low', 0.10);
+    }
+
+    // Steady shaker triplets on even steps
     if (step % 2 === 0) {
-      // Steady eighth-note shakers
-      this.synthesizeShaker(time, step === 0 || step === 8 ? 0.08 : 0.05);
-    } else if (step === 3 || step === 11) {
-      // Dotted swing shaker accents for that legendary bolero triplet sway
-      this.synthesizeShaker(time, 0.04);
+      this.synthesizeShaker(time, step === 0 || step === 8 ? 0.07 : 0.04);
     }
 
-    // Get current progression
+    // Retrieve active progression
     const progression = getBiomeProgression(this.currentBiome);
     const chord = progression[this.chordIndex % progression.length]!;
 
-    // 3. Warm Andalusia Chord Pad swell (Starts at beginning of bar: step === 0)
+    // 4. Nylon Classical Guitar Chord Sweeps (Physical Model via Resonant Bandpass Filter)
+    // Strum an arpeggiated manual finger sweep downward on Step 0 (Chord Change)
     if (step === 0) {
-      this.synthesizeChord(time, chord);
+      chord.forEach((midi, idx) => {
+        const sweepDelay = idx * (0.02 + this.llmSeedRoll * 0.03); // Modulated by LLM seed (20ms - 50ms)
+        const freq = getMidiFreq(midi);
+        this.synthesizeGuitarPluck(time + sweepDelay, freq, 0.15 - idx * 0.015);
+      });
+      // Move to the next chord index
       this.chordIndex = (this.chordIndex + 1) % progression.length;
+    } else if (step === 4 || step === 8 || step === 12) {
+      // Secondary light strum backing rhythm on intermediate beats
+      const higherNotes = chord.slice(2); // Play top voices only
+      higherNotes.forEach((midi, idx) => {
+        const sweepDelay = idx * (0.015 + this.llmSeedRoll * 0.02);
+        const freq = getMidiFreq(midi);
+        this.synthesizeGuitarPluck(time + sweepDelay, freq, 0.06);
+      });
     }
 
-    // 4. Generative Lo-fi Melody Whistle (Triangle tape lead)
-    // Melody notes play syncopatedly: steps 0, 3, 6, 8, 11, 14
+    // 5. Warm Syncopated Walking Double Bassline (Tresillo Rhythm)
+    // Step 0: Root (Deep Octave)
+    // Step 4: Fifth
+    // Step 8: Octave or Minor/Major Third
+    // Step 10: Chromatic leading tone sliding to next root
+    // Step 12: Dominant Fifth
+    const nextChord = progression[this.chordIndex % progression.length]!;
+    const rootBass = chord[0]! - 12; // deep bass transpose
+    const nextRootBass = nextChord[0]! - 12;
+
+    if (step === 0) {
+      this.synthesizeBass(time, getMidiFreq(rootBass), stepDuration * 3.6, 0.44);
+    } else if (step === 4) {
+      this.synthesizeBass(time, getMidiFreq(rootBass + 7), stepDuration * 3.6, 0.40);
+    } else if (step === 8) {
+      this.synthesizeBass(time, getMidiFreq(rootBass + 12), stepDuration * 1.8, 0.36);
+    } else if (step === 10) {
+      // Sophisticated chromatic passing/leading tone towards the next chord's root
+      const diff = nextRootBass - rootBass;
+      const passingPitch = nextRootBass + (diff > 0 ? -1 : 1);
+      this.synthesizeBass(time, getMidiFreq(passingPitch), stepDuration * 1.8, 0.36);
+    } else if (step === 12) {
+      this.synthesizeBass(time, getMidiFreq(rootBass + 7), stepDuration * 3.6, 0.40);
+    }
+
+    // 6. Generative Breathy Woody Spanish Flute (Adaptive Modal Melody)
+    // Flute plays syncopated modal steps on steps 0, 3, 6, 8, 11, 14
     const isMelodyStep = step === 0 || step === 3 || step === 6 || step === 8 || step === 11 || step === 14;
-    const melodyChance = seededFloat(this.worldSeed ^ (step * 997) ^ (this.chordIndex * 13));
-    if (isMelodyStep && melodyChance < 0.45) {
-      // Pick a chord tone, transpose up to high register, and play it step-wise
+    const melodyChance = seededFloat(this.worldSeed ^ (step * 997) ^ (this.chordIndex * 23));
+    const effectiveChance = (melodyChance * 0.7) + (this.llmSeedRoll * 0.3);
+    if (isMelodyStep && effectiveChance < 0.48) {
+      // Select a modal scale degree from the active chord voices
       const randomNoteIdx = Math.floor(melodyChance * chord.length);
-      let targetMidi = chord[randomNoteIdx]! + 24; // octave transpose
-      
-      // Step-wise melodic smoothing
+      let targetMidi = chord[randomNoteIdx]! + 24; // Transpose 2 octaves up for lead flute flute register
+
+      // Melodic smoothing (ensure no wild jumps bigger than a fifth)
       if (Math.abs(targetMidi - this.lastMelodyPitch) > 7) {
         targetMidi = this.lastMelodyPitch + (targetMidi > this.lastMelodyPitch ? 2 : -2);
       }
       this.lastMelodyPitch = targetMidi;
-      
-      this.synthesizeMelody(time, getMidiFreq(targetMidi));
+
+      const duration = stepDuration * (2.2 + seededFloat(this.worldSeed ^ step) * 1.2);
+      this.synthesizeFlute(time, getMidiFreq(targetMidi), duration, 0.08);
     }
   }
 
-  // ─── synthesizers ───────────────────────────────────────────────────────────
+  // ─── Synthesizer Layers ─────────────────────────────────────────────────────
 
+  /** Synthesize a warm Kick drum using a swept oscillator */
   private synthesizeKick(time: number, volume: number): void {
     if (!this.ctx || !this.mainFilter) return;
     const osc = this.ctx.createOscillator();
@@ -303,16 +388,18 @@ export class ProceduralAudio {
     osc.connect(gain);
     gain.connect(this.mainFilter);
 
-    osc.frequency.setValueAtTime(110, time);
-    osc.frequency.exponentialRampToValueAtTime(42, time + 0.14);
+    // Warm deep kick sweep
+    osc.frequency.setValueAtTime(100, time);
+    osc.frequency.exponentialRampToValueAtTime(38, time + 0.15);
 
     gain.gain.setValueAtTime(volume, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.16);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.17);
 
     osc.start(time);
-    osc.stop(time + 0.17);
+    osc.stop(time + 0.18);
   }
 
+  /** Synthesize a retro snare rimshot using bandpass filtered white noise */
   private synthesizeRimshot(time: number, volume: number): void {
     if (!this.ctx || !this.mainFilter) return;
     const bufferSize = this.ctx.sampleRate * 0.07;
@@ -327,8 +414,8 @@ export class ProceduralAudio {
 
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(850, time);
-    filter.Q.setValueAtTime(4.0, time);
+    filter.frequency.setValueAtTime(800, time);
+    filter.Q.setValueAtTime(4.5, time);
 
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(volume, time);
@@ -342,9 +429,10 @@ export class ProceduralAudio {
     noise.stop(time + 0.075);
   }
 
+  /** Synthesize a bright hi-hat/shaker burst using highpass filtered noise */
   private synthesizeShaker(time: number, volume: number): void {
     if (!this.ctx || !this.mainFilter) return;
-    const bufferSize = this.ctx.sampleRate * 0.025;
+    const bufferSize = this.ctx.sampleRate * 0.03;
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
@@ -356,122 +444,290 @@ export class ProceduralAudio {
 
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'highpass';
-    filter.frequency.setValueAtTime(6500, time);
+    filter.frequency.setValueAtTime(6800, time);
 
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(volume, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.022);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.024);
 
     noise.connect(filter);
     filter.connect(gain);
     gain.connect(this.mainFilter);
 
     noise.start(time);
-    noise.stop(time + 0.025);
+    noise.stop(time + 0.035);
   }
 
+  /** Synthesize warm Latin bongos/congas using swept sine waves and high-passed noise strike */
+  private synthesizeConga(time: number, pitch: 'high' | 'low', volume: number): void {
+    if (!this.ctx || !this.mainFilter) return;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    const baseFreq = pitch === 'high' ? 310 : 175;
+    
+    // Quick pitch sweep downward mimics real hand strike skin tension
+    osc.frequency.setValueAtTime(baseFreq * 1.35, time);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq, time + 0.04);
+
+    // Striking texture: short white noise burst
+    const bufferSize = this.ctx.sampleRate * 0.015;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+    }
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const noiseFilter = this.ctx.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.setValueAtTime(baseFreq * 2.2, time);
+    noiseFilter.Q.setValueAtTime(2.5, time);
+
+    const noiseGain = this.ctx.createGain();
+    noiseGain.gain.setValueAtTime(volume * 0.35, time);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.012);
+
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+    noiseGain.connect(this.mainFilter);
+
+    // Main drum tone envelope
+    gain.gain.setValueAtTime(volume * 1.1, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.11);
+
+    osc.connect(gain);
+    gain.connect(this.mainFilter);
+
+    osc.start(time);
+    osc.stop(time + 0.12);
+    noise.start(time);
+    noise.stop(time + 0.015);
+
+    this.activeOscillators.push(osc);
+  }
+
+  /** Synthesize a Latin Guiro scraper utilizing amplitude modulation of white noise */
+  private synthesizeGuiro(time: number, duration: number, volume: number): void {
+    if (!this.ctx || !this.mainFilter) return;
+
+    const sampleRate = this.ctx.sampleRate;
+    const len = Math.floor(sampleRate * duration);
+    const buffer = this.ctx.createBuffer(1, len, sampleRate);
+    const data = buffer.getChannelData(0);
+    
+    // Simulate the physical ridged gourd by modulating noise amplitude with an 85 Hz sine
+    for (let i = 0; i < len; i++) {
+      const ridgeFreq = 85;
+      const ridgeMod = Math.sin((i / sampleRate) * Math.PI * 2 * ridgeFreq);
+      data[i] = (Math.random() * 2 - 1) * (0.6 + ridgeMod * 0.4) * Math.pow(1 - i / len, 1.2);
+    }
+
+    const noiseSrc = this.ctx.createBufferSource();
+    noiseSrc.buffer = buffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(5000, time);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(volume, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+
+    noiseSrc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.mainFilter);
+
+    noiseSrc.start(time);
+    noiseSrc.stop(time + duration + 0.05);
+
+    this.activeOscillators.push(noiseSrc);
+  }
+
+  /** Synthesize retro vinyl popping sounds */
   private playVinylCrackle(time: number, seedVal: number): void {
     if (!this.ctx || !this.mainFilter) return;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
 
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(7500 + seedVal * 3000, time);
+    osc.frequency.setValueAtTime(7000 + seedVal * 4000, time);
 
-    gain.gain.setValueAtTime(0.007 * seedVal, time);
-    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.004);
+    gain.gain.setValueAtTime(0.008 * seedVal, time);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.005);
 
     osc.connect(gain);
     gain.connect(this.mainFilter);
 
     osc.start(time);
-    osc.stop(time + 0.005);
+    osc.stop(time + 0.006);
   }
 
-  private synthesizeChord(time: number, midiPitches: number[]): void {
+  /** Synthesize a Physical-Model Nylon Classical Guitar Pluck using high-Q resonant bandpass filters */
+  private synthesizeGuitarPluck(time: number, frequency: number, volume: number): void {
     if (!this.ctx || !this.mainFilter) return;
-    const stepDuration = (60 / 82) / 4;
-    const chordDuration = stepDuration * 15.6; // seamlessly overlap to next bar
 
-    midiPitches.forEach((midi, idx) => {
-      if (!this.ctx || !this.mainFilter) return;
-      const freq = getMidiFreq(midi);
+    // Excitation: noise burst
+    const dur = 0.06 + seededFloat(this.worldSeed ^ Math.floor(frequency)) * 0.04;
+    const sampleRate = this.ctx.sampleRate;
+    const len = Math.floor(sampleRate * dur);
+    const buffer = this.ctx.createBuffer(1, len, sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.8);
+    }
 
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
+    const noiseSrc = this.ctx.createBufferSource();
+    noiseSrc.buffer = buffer;
 
-      // Soft mix of sine and triangle waves for vintage lo-fi warmth
-      osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
-      
-      // Detune slightly for lush chorused tape-wow effect
-      const chorusedFreq = freq * (1 + (seededFloat(this.worldSeed ^ idx ^ midi) - 0.5) * 0.004);
-      osc.frequency.setValueAtTime(chorusedFreq, time);
+    // Resonant bandpass filter acting as the guitar string resonator
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    
+    // Tape wow/flutter pitch drift LFO simulation applied to guitar strings
+    const wowFreq = 1.9; // 1.9 Hz slow drift
+    const wowDepth = 0.0035; // 0.35% wow depth
+    const drift = 1 + Math.sin(time * Math.PI * 2 * wowFreq) * wowDepth;
+    filter.frequency.setValueAtTime(frequency * drift, time);
+    
+    // High Q value gives nylon acoustic pluck string feedback properties
+    filter.Q.setValueAtTime(95, time);
 
-      // Dedicated vocal-like lo-fi lowpass per chord voice
-      const voiceFilter = this.ctx.createBiquadFilter();
-      voiceFilter.type = 'lowpass';
-      voiceFilter.frequency.setValueAtTime(260 + idx * 75, time);
-      voiceFilter.Q.setValueAtTime(0.8, time);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(volume * 4.6, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 1.3);
 
-      // Slow, beautiful swell (envelope)
-      gain.gain.setValueAtTime(0.0, time);
-      gain.gain.linearRampToValueAtTime(0.12, time + 0.8);
-      gain.gain.setValueAtTime(0.12, time + chordDuration - 0.6);
-      gain.gain.linearRampToValueAtTime(0.0, time + chordDuration);
+    noiseSrc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.mainFilter);
 
-      osc.connect(voiceFilter);
-      voiceFilter.connect(gain);
-      gain.connect(this.mainFilter);
+    noiseSrc.start(time);
+    noiseSrc.stop(time + 1.4);
 
-      osc.start(time);
-      osc.stop(time + chordDuration + 0.1);
-
-      this.activeOscillators.push(osc);
-    });
+    this.activeOscillators.push(noiseSrc);
   }
 
-  private synthesizeMelody(time: number, frequency: number): void {
+  /** Synthesize deep, warm walking double bass tones */
+  private synthesizeBass(time: number, frequency: number, duration: number, volume: number): void {
     if (!this.ctx || !this.mainFilter) return;
+
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
 
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(frequency, time);
+    
+    // Warm vintage wow/flutter on bass
+    const wowFreq = 1.4;
+    const wowDepth = 0.002;
+    const drift = 1 + Math.sin(time * Math.PI * 2 * wowFreq) * wowDepth;
+    osc.frequency.setValueAtTime(frequency * drift, time);
 
-    // Warm retro whistle tape vibrato (LFO)
-    const lfo = this.ctx.createOscillator();
-    lfo.frequency.setValueAtTime(5.4 + seededFloat(this.worldSeed ^ Math.floor(frequency)) * 1.5, time);
-    const lfoGain = this.ctx.createGain();
-    lfoGain.gain.setValueAtTime(frequency * 0.006, time);
-
-    lfo.connect(lfoGain);
-    lfoGain.connect(osc.frequency);
-
-    // Whistle lowpass filtering
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(800, time);
+    filter.frequency.setValueAtTime(170, time);
+    filter.Q.setValueAtTime(1.0, time);
 
-    // Length of note
-    const stepDuration = (60 / 82) / 4;
-    const duration = stepDuration * 2.2; // beautiful legato duration
-
+    // Warm gain shape
     gain.gain.setValueAtTime(0.0, time);
-    gain.gain.linearRampToValueAtTime(0.075, time + 0.06);
-    gain.gain.setValueAtTime(0.075, time + duration - 0.06);
-    gain.gain.linearRampToValueAtTime(0.0, time + duration);
+    gain.gain.linearRampToValueAtTime(volume * 1.3, time + 0.03);
+    gain.gain.setValueAtTime(volume * 1.3, time + duration - 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
 
     osc.connect(filter);
     filter.connect(gain);
     gain.connect(this.mainFilter);
 
     osc.start(time);
-    lfo.start(time);
+    osc.stop(time + duration + 0.1);
+
+    this.activeOscillators.push(osc);
+  }
+
+  /** Synthesize a highly breathy wooden lead flute with portamento and vibrato */
+  private synthesizeFlute(time: number, frequency: number, duration: number, volume: number): void {
+    if (!this.ctx || !this.mainFilter) return;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
     
+    // Flute expressive vibrato LFO
+    const vibratoFreq = 5.6; // 5.6 Hz human breath vibrato
+    const vibratoDepth = 0.008; // gorgeous vibrato depth
+    
+    const lfo = this.ctx.createOscillator();
+    lfo.frequency.setValueAtTime(vibratoFreq, time);
+    
+    const lfoGain = this.ctx.createGain();
+    // Vibrato swells in dynamically to simulate real wooden flute play style
+    lfoGain.gain.setValueAtTime(0, time);
+    lfoGain.gain.linearRampToValueAtTime(frequency * vibratoDepth, time + 0.16);
+
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+
+    // Portamento pitch glide from previous flute register
+    const glideDuration = 0.09; // 90ms portamento glide
+    osc.frequency.setValueAtTime(this.lastFluteFreq, time);
+    osc.frequency.exponentialRampToValueAtTime(frequency, time + glideDuration);
+    this.lastFluteFreq = frequency;
+
+    // Breathy wooden texture: parallel bandpass-filtered white noise
+    const sampleRate = this.ctx.sampleRate;
+    const len = Math.floor(sampleRate * duration);
+    const noiseBuffer = this.ctx.createBuffer(1, len, sampleRate);
+    const noiseData = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      noiseData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.4);
+    }
+    
+    const breathSrc = this.ctx.createBufferSource();
+    breathSrc.buffer = noiseBuffer;
+
+    const breathFilter = this.ctx.createBiquadFilter();
+    breathFilter.type = 'bandpass';
+    // Breath noise tracks pitch for acoustic pipe air resonance
+    breathFilter.frequency.setValueAtTime(frequency, time);
+    breathFilter.frequency.exponentialRampToValueAtTime(frequency, time + glideDuration);
+    breathFilter.Q.setValueAtTime(14, time);
+
+    const breathGain = this.ctx.createGain();
+    breathGain.gain.setValueAtTime(volume * 0.50, time);
+    breathGain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+
+    breathSrc.connect(breathFilter);
+    breathFilter.connect(breathGain);
+    breathGain.connect(this.mainFilter);
+
+    // Warm wooden woodwind filter
+    const fluteFilter = this.ctx.createBiquadFilter();
+    fluteFilter.type = 'lowpass';
+    fluteFilter.frequency.setValueAtTime(1150, time);
+
+    // Flute soft-attack envelope
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(volume, time + 0.03);
+    gain.gain.setValueAtTime(volume, time + duration - 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+
+    osc.connect(fluteFilter);
+    fluteFilter.connect(gain);
+    gain.connect(this.mainFilter);
+
+    osc.start(time);
+    lfo.start(time);
+    breathSrc.start(time);
+
     osc.stop(time + duration + 0.1);
     lfo.stop(time + duration + 0.1);
+    breathSrc.stop(time + duration + 0.1);
 
     this.activeOscillators.push(osc);
     this.activeOscillators.push(lfo);
+    this.activeOscillators.push(breathSrc);
   }
 }

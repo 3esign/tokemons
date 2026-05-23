@@ -85,129 +85,60 @@
         box-shadow: 1px 1px 0 #0f380f;
       }
 
-      #api-settings-open {
+      @keyframes slideDown {
+        from {
+          opacity: 0;
+          transform: translateY(-8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      #system-menu-container {
         position: fixed;
         top: 8px;
         right: 8px;
+        z-index: 110;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+      }
+      #system-menu-toggle {
         font-size: 9px;
         padding: 8px 12px;
         background: #9bbc0f;
         color: #0f380f;
-        z-index: 110;
+        cursor: pointer;
+        display: block;
       }
-      #reset-game {
-        position: fixed;
-        top: 44px;
-        right: 8px;
-        font-size: 9px;
-        padding: 8px 12px;
-        background: #306230;
-        color: #e8f0d0;
-        z-index: 110;
+      #system-menu-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-top: 4px;
+        background: #0f380f;
+        border: 3px solid #0f380f;
+        box-shadow: 4px 4px 0 #306230;
+        padding: 6px;
+        animation: slideDown 0.15s steps(4) forwards;
+      }
+      #system-menu-panel.hidden {
+        display: none;
+      }
+      #system-menu-panel button {
+        font-size: 8px;
+        padding: 6px 10px;
+        text-align: right;
+        width: 150px;
+        display: block;
+      }
+      #api-settings-open {
+        background: #9bbc0f;
+        color: #0f380f;
       }
       #download-report {
-        position: fixed;
-        top: 80px;
-        right: 8px;
-        font-size: 8px;
-        padding: 8px 12px;
-        background: #8bac0f;
-        color: #0f380f;
-        z-index: 110;
-      }
-
-      #build-hint {
-        position: fixed;
-        bottom: 12px;
-        left: 50%;
-        transform: translateX(-50%);
-        font-size: 8px;
-        color: #0f380f;
-        background: #e8f0d0;
-        padding: 10px 14px;
-        border: 3px solid #0f380f;
-        box-shadow: 4px 4px 0 #0f380f;
-        line-height: 1.4;
-      }
-      #build-hint.hidden {
-        display: none;
-      }
-
-      /* Double-bordered Retro Chat Panel */
-      #chat-panel {
-        display: none;
-        position: fixed;
-        right: 12px;
-        bottom: 12px;
-        width: min(420px, calc(100vw - 24px));
-        max-height: 60vh;
-        background: #0f380f;
-        border: 4px solid #0f380f;
-        outline: 3px solid #9bbc0f;
-        outline-offset: -7px;
-        box-shadow: 6px 6px 0 #306230;
-        flex-direction: column;
-        padding: 6px;
-      }
-      #chat-panel.open {
-        display: flex;
-      }
-      #chat-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 8px 12px;
-        font-size: 10px;
-        background: #9bbc0f;
-        color: #0f380f;
-        border: 3px solid #0f380f;
-        margin-bottom: 4px;
-      }
-      #chat-close {
-        background: #306230;
-        color: #e8f0d0;
-        font-size: 8px;
-        padding: 4px 8px;
-        box-shadow: 1px 1px 0 #0f380f;
-      }
-      #chat-close:active {
-        transform: translate(1px, 1px);
-        box-shadow: 0 0 0 #0f380f;
-      }
-      #chat-log {
-        flex: 1;
-        overflow-y: auto;
-        padding: 10px;
-        font-size: 10px;
-        line-height: 1.6;
-        background: #0f380f;
-        color: #e8f0d0;
-        border: 3px solid #0f380f;
-        min-height: 180px;
-        max-height: 40vh;
-        margin-bottom: 4px;
-      }
-      #memory-hint {
-        position: fixed;
-        top: 118px;
-        right: 8px;
-        font-size: 7px;
-        color: #9bbc0f;
-        pointer-events: none;
-        text-align: right;
-        line-height: 1.5;
-        text-shadow: 2px 2px 0 #0f380f;
-      }
-      .chat-user {
-        color: #e8f0d0;
-      }
-      .chat-assistant {
-        color: #9bbc0f;
-      }
-      .chat-system {
-        color: #306230;
-      }
-      .chat-discovery {
         color: #e8f0d0;
         background: #306230;
         padding: 6px;
@@ -461,39 +392,44 @@
         color: #e8f0d0;
         background: #306230;
         padding: 3px 6px;
-      .api-log-empty {
-        color: #306230;
-        text-align: center;
-        padding-top: 40px;
-      }
-      .api-log-entry {
-        border-bottom: 1px dashed #306230;
-        padding: 5px 0;
-        word-break: break-all;
-        white-space: pre-wrap;
-        font-family: monospace;
-      }
-      .api-log-tx {
-        color: #e8f0d0;
-      }
-      .api-log-rx {
-        color: #9bbc0f;
-      }
-      .api-log-err {
-        color: #e8f0d0;
-        background: #306230;
-        padding: 3px 6px;
         border-left: 3px solid #9bbc0f;
         margin-top: 4px;
+      }
+      .hidden {
+        display: none !important;
+      }
+      #build-hint {
+        position: fixed;
+        bottom: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-family: inherit;
+        font-size: 8px;
+        color: #e8f0d0;
+        background: #0f380f;
+        border: 3px solid #0f380f;
+        outline: 2px solid #306230;
+        outline-offset: -5px;
+        box-shadow: 4px 4px 0 #0f380f;
+        padding: 8px 14px;
+        z-index: 105;
+        line-height: 1.4;
+        pointer-events: none;
+        white-space: nowrap;
       }
     </style>
   </head>
   <body>
     <div id="game-root"></div>
     <div id="ui-layer">
-      <button type="button" id="api-settings-open">API (P)</button>
-      <button type="button" id="reset-game">RESET</button>
-      <button type="button" id="download-report">REPORT</button>
+      <div id="system-menu-container">
+        <button type="button" id="system-menu-toggle">SYSTEM ☰</button>
+        <div id="system-menu-panel" class="hidden">
+          <button type="button" id="api-settings-open">API CONFIG (P)</button>
+          <button type="button" id="download-report">EXPORT REPORT</button>
+          <button type="button" id="reset-game">RESET SAVE</button>
+        </div>
+      </div>
       <div id="api-settings">
         <div id="api-settings-box">
           <h2>AI PROVIDER</h2>

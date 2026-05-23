@@ -24,6 +24,39 @@ document.getElementById('reset-game')?.addEventListener('click', () => {
   game.scene.start('Create');
 });
 
+// Interactive SYSTEM collapsible menu logic
+const menuToggle = document.getElementById('system-menu-toggle');
+const menuPanel = document.getElementById('system-menu-panel');
+
+if (menuToggle && menuPanel) {
+  menuToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menuPanel.classList.toggle('hidden');
+  });
+
+  // Collapse when clicking outside the panel
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    if (!menuPanel.contains(target) && target !== menuToggle) {
+      menuPanel.classList.add('hidden');
+    }
+  });
+
+  // Collapse automatically on option click
+  menuPanel.querySelectorAll('button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      menuPanel.classList.add('hidden');
+    });
+  });
+
+  // Collapse on ESC key press
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      menuPanel.classList.add('hidden');
+    }
+  });
+}
+
 /** Safety: never stay stuck on boot */
 window.setTimeout(() => {
   if (game.scene.isActive('Boot')) {

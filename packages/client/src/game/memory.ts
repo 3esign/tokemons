@@ -39,6 +39,11 @@ export interface TokemonMemory {
   energy: number;      // Energy Resource
   visitedCoords: string[];
   lootedCoords?: string[];
+  subState?: 'curious' | 'nostalgic' | 'anxious' | 'creative' | 'weary';
+  subDirective?: string;
+  subThought?: string;
+  subScript?: string[];
+  llmSeedRoll?: number;
 }
 
 const MAX_EPISODES = 48;
@@ -74,12 +79,27 @@ export function createGenesisMemory(tokemon: TokemonInstance, worldSeed: number)
     energy: 100,
     visitedCoords: ['0,0'],
     lootedCoords: [],
+    subState: 'curious',
+    subDirective: 'Explore the grid to map new horizons.',
+    subThought: 'A new path unfolds before my awareness.',
+    subScript: [],
+    llmSeedRoll: 0.5,
   };
 }
 
-export function recordEpisode(mem: TokemonMemory, entry: Omit<MemoryEntry, 'id' | 't'>): void {
+export function recordEpisode(
+  mem: TokemonMemory,
+  entry: Omit<MemoryEntry, 'id' | 't'>,
+  isNearShrine = false
+): void {
+  let text = entry.text;
+  if (isNearShrine && !text.startsWith('[Crystallized]')) {
+    text = `[Crystallized] ${text}`;
+    mem.llmBalance += 5; // Mint +5 $LLM
+  }
   const full: MemoryEntry = {
     ...entry,
+    text,
     id: `${entry.kind}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     t: Date.now(),
   };
@@ -172,7 +192,10 @@ export function scoreAndRetrieveMemories(
       const timeElapsed = (Date.now() - e.t) / 1000; // in seconds
       const recency = 1 / (1 + timeElapsed * 0.01); 
       
-      const score = proximityBoost + biomeBoost + recency * 0.2;
+      let score = proximityBoost + biomeBoost + recency * 0.2;
+      if (e.text.startsWith('[Crystallized]')) {
+        score *= 2.0;
+      }
       return { entry: e, score };
     })
     .sort((a, b) => b.score - a.score)

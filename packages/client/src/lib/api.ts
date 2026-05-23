@@ -68,6 +68,7 @@ export function extractReply(res: ChatResponse): string {
 
 function summarizeMessages(messages: ChatMessage[]): string {
   return messages
+    .filter((message) => message.role !== 'system')
     .map((message, index) => {
       const content = message.content.replace(/\s+/g, ' ').trim();
       return `${index + 1}. ${message.role}: ${content.slice(0, 700)}${content.length > 700 ? '...' : ''}`;

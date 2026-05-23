@@ -103,6 +103,11 @@ export function loadGame(): SaveData | null {
         if (data.memory.energy === undefined) data.memory.energy = 100;
         if (data.memory.visitedCoords === undefined) data.memory.visitedCoords = ['0,0'];
         if (data.memory.lootedCoords === undefined) data.memory.lootedCoords = [];
+        if (data.memory.subState === undefined) data.memory.subState = 'curious';
+        if (data.memory.subDirective === undefined) data.memory.subDirective = 'Explore the grid to map new horizons.';
+        if (data.memory.subThought === undefined) data.memory.subThought = 'A new path unfolds before my awareness.';
+        if (data.memory.subScript === undefined) data.memory.subScript = [];
+        if (data.memory.llmSeedRoll === undefined) data.memory.llmSeedRoll = 0.5;
         return data;
       }
       return migrateV1(data as unknown as Record<string, unknown>);
