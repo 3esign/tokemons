@@ -1,4 +1,4 @@
-﻿import Phaser from 'phaser';
+import Phaser from 'phaser';
 import { bakeTokemonCanvas, ensureGenes } from '@tokemons/tokemon-gen';
 import type { BiomeId } from '@tokemons/kernel';
 import { GB } from '../palette.js';
@@ -656,7 +656,8 @@ export class PlayScene extends Phaser.Scene {
       this.player.setFlipX(false);
     }
 
-    this.moveLock = true;`r`n    this.applyAuraEffects(nx, ny);
+    this.moveLock = true;
+    this.applyAuraEffects(nx, ny);
     this.isSleeping = false; // Manual movement or triggered movement interrupts sleep
 
     this.rt.playerX = nx;
@@ -2272,7 +2273,10 @@ Respond with exactly a JSON object in this format (no other text, markdown block
       mem,
       nearestWellDist,
       nearestCottageDist,
-      nearestRelicDist,`r`n      this.getDistanceToNearestBlock(2), // Shrine ID 2`r`n      this.getDistanceToNearestBlock(1)  // Path ID 1`r`n    );
+      nearestRelicDist,
+      this.getDistanceToNearestBlock(2), // Shrine ID 2
+      this.getDistanceToNearestBlock(1)  // Path ID 1
+    );
     mem.subScript = this.postProcessScriptFormulas(rawScript);
     
     const aura = getAuraColorForState(mockState);
