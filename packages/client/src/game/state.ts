@@ -108,6 +108,33 @@ export function loadGame(): SaveData | null {
         if (data.memory.subThought === undefined) data.memory.subThought = 'A new path unfolds before my awareness.';
         if (data.memory.subScript === undefined) data.memory.subScript = [];
         if (data.memory.llmSeedRoll === undefined) data.memory.llmSeedRoll = 0.5;
+        
+        // 99-Level Evolving Consciousness Defaults
+        if (data.memory.evolutionLevel === undefined) data.memory.evolutionLevel = 1;
+        if (data.memory.experiencePoints === undefined) data.memory.experiencePoints = 0;
+        if (data.memory.invisibleReward === undefined) data.memory.invisibleReward = 0;
+        if (data.memory.hiddenLayers === undefined) {
+          const layers: number[][] = [];
+          for (let i = 0; i < 8; i++) {
+            layers[i] = [];
+            for (let j = 0; j < 8; j++) {
+              layers[i][j] = Math.random();
+            }
+          }
+          data.memory.hiddenLayers = layers;
+        }
+        if (data.memory.parametricConcepts === undefined) {
+          data.memory.parametricConcepts = [
+            'Quantum Superposition',
+            'Thermodynamic Latent Manifold (TLM)',
+            'Existential Calculus',
+            'Procedural Singularity',
+            'Seed-Driven Determinism',
+            'Latent Space Navigation',
+            'Recursive Self-Assembly',
+            'Coordinate-Anchored Consciousness'
+          ];
+        }
         return data;
       }
       return migrateV1(data as unknown as Record<string, unknown>);

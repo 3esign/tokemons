@@ -1,4 +1,4 @@
-import { chatCompletion, extractReply } from '../lib/api.js';
+﻿import { chatCompletion, extractReply } from '../lib/api.js';
 import {
   type ApiConfig,
   type ProviderId,
@@ -88,6 +88,10 @@ export class ApiSettingsPanel {
   hide(): void {
     this.panel.classList.remove('open');
     this.keyInput.value = '';
+    // Ensure focus is released so keyboard shortcuts work in the game
+    if (this.panel.contains(document.activeElement)) {
+      (document.activeElement as HTMLElement).blur();
+    }
   }
 
   toggle(): void {
@@ -135,9 +139,9 @@ export class ApiSettingsPanel {
             <strong style="color: #d6deb8;">2. Run in terminal:</strong>
           </div>
           <div style="margin-top: 2px; padding: 2px; background: #1a2e1a; border-radius: 1px; font-family: monospace; font-size: 6px; color: #a9b968; word-break: break-all;">
-            • macOS/Linux: OLLAMA_ORIGINS="*" ollama serve<br/>
-            • PowerShell: $env:OLLAMA_ORIGINS="*" ; ollama serve<br/>
-            • Windows CMD: set OLLAMA_ORIGINS=* && ollama serve
+            â€¢ macOS/Linux: OLLAMA_ORIGINS="*" ollama serve<br/>
+            â€¢ PowerShell: $env:OLLAMA_ORIGINS="*" ; ollama serve<br/>
+            â€¢ Windows CMD: set OLLAMA_ORIGINS=* && ollama serve
           </div>
         </div>
       `;
@@ -203,3 +207,4 @@ export class ApiSettingsPanel {
     }
   }
 }
+

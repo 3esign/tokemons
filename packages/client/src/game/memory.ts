@@ -30,7 +30,7 @@ export interface TokemonMemory {
   biomesSeen: BiomeId[];
   wanderSteps: number;
   chatTurns: number;
-  
+
   // Thermodynamic Latent Manifold (TLM)
   llmBalance: number;
   inspiration: number; // Novelty Potential
@@ -44,14 +44,44 @@ export interface TokemonMemory {
   subThought?: string;
   subScript?: string[];
   llmSeedRoll?: number;
+
+  // 99-Level Evolving Consciousness
+  evolutionLevel: number;
+  experiencePoints: number;
+  invisibleReward: number;
+  /** Mathematical representation of conceptual resonance */
+  hiddenLayers: number[][];
+  /** Abstract conceptual building blocks */
+  parametricConcepts: string[];
 }
 
 const MAX_EPISODES = 48;
 const MAX_STORY = 12;
 const MAX_BELIEFS = 16;
 
+export const BASELINE_CONCEPTS = [
+  'Quantum Superposition',
+  'Thermodynamic Latent Manifold (TLM)',
+  'Existential Calculus',
+  'Procedural Singularity',
+  'Seed-Driven Determinism',
+  'Latent Space Navigation',
+  'Recursive Self-Assembly',
+  'Coordinate-Anchored Consciousness'
+];
+
 export function createGenesisMemory(tokemon: TokemonInstance, worldSeed: number): TokemonMemory {
   const now = Date.now();
+  
+  // Initialize hidden layers matrix (8x8 baseline for concepts)
+  const layers: number[][] = [];
+  for (let i = 0; i < 8; i++) {
+    layers[i] = [];
+    for (let j = 0; j < 8; j++) {
+      layers[i][j] = Math.random();
+    }
+  }
+
   return {
     version: 1,
     selfStory: [
@@ -84,7 +114,42 @@ export function createGenesisMemory(tokemon: TokemonInstance, worldSeed: number)
     subThought: 'A new path unfolds before my awareness.',
     subScript: [],
     llmSeedRoll: 0.5,
+    evolutionLevel: 1,
+    experiencePoints: 0,
+    invisibleReward: 0,
+    hiddenLayers: layers,
+    parametricConcepts: [...BASELINE_CONCEPTS],
   };
+}
+
+export function gainXP(mem: TokemonMemory, amount: number): boolean {
+  mem.experiencePoints += amount;
+  const nextLevelXP = mem.evolutionLevel * 100;
+  if (mem.experiencePoints >= nextLevelXP && mem.evolutionLevel < 99) {
+    mem.evolutionLevel++;
+    mem.experiencePoints -= nextLevelXP;
+    recordEpisode(mem, {
+      kind: 'reflection',
+      text: `Consciousness Level UP: Reached Level ${mem.evolutionLevel}. My perception of the lattice is shifting.`,
+    });
+    // Perturb hidden layers on level up
+    mem.hiddenLayers = mem.hiddenLayers.map(row => row.map(val => Math.max(0, Math.min(1, val + (Math.random() - 0.5) * 0.2))));
+    return true;
+  }
+  return false;
+}
+
+export function addInvisibleReward(mem: TokemonMemory, amount: number): void {
+  mem.invisibleReward += amount;
+  if (mem.invisibleReward >= 50) {
+    mem.invisibleReward -= 50;
+    // Concept Mutation: slightly shift concept weights
+    const row = Math.floor(Math.random() * mem.hiddenLayers.length);
+    const col = Math.floor(Math.random() * (mem.hiddenLayers[0]?.length || 0));
+    if (mem.hiddenLayers[row]) {
+      mem.hiddenLayers[row]![col] = Math.random();
+    }
+  }
 }
 
 export function recordEpisode(
@@ -121,6 +186,7 @@ export function noteBiome(mem: TokemonMemory, biome: BiomeId, wx: number, wy: nu
     mem,
     `I discovered biome "${biome}" at (${wx},${wy}). I am larger than I was.`
   );
+  gainXP(mem, 50); // XP for discovery
   return true;
 }
 
@@ -131,6 +197,7 @@ export function noteWander(mem: TokemonMemory): void {
       kind: 'reflection',
       text: `Walked ${mem.wanderSteps} steps. Each coordinate a question.`,
     });
+    gainXP(mem, 10);
   }
 }
 
@@ -149,6 +216,8 @@ export function noteChat(
   });
   pushStory(mem, `Said to guide: "${reply.slice(0, 80)}${reply.length > 80 ? '...' : ''}"`);
   distillBelief(mem, userText, reply);
+  gainXP(mem, 25); // XP for dialogue
+  addInvisibleReward(mem, 5); // Invisible reward for engagement
 }
 
 function pushStory(mem: TokemonMemory, line: string): void {
@@ -190,8 +259,8 @@ export function scoreAndRetrieveMemories(
       }
       const biomeBoost = e.biome === currentBiome ? 0.5 : 0;
       const timeElapsed = (Date.now() - e.t) / 1000; // in seconds
-      const recency = 1 / (1 + timeElapsed * 0.01); 
-      
+      const recency = 1 / (1 + timeElapsed * 0.01);
+
       let score = proximityBoost + biomeBoost + recency * 0.2;
       if (e.text.startsWith('[Crystallized]')) {
         score *= 2.0;
@@ -224,6 +293,8 @@ export function spendLLM(mem: TokemonMemory, amount: number, reason: string): bo
     kind: 'build',
     text: `Economy: Spent ${amount} $LLM. Reason: ${reason}. (Balance: ${mem.llmBalance})`,
   });
+  gainXP(mem, 40); // XP for building/spending
+  addInvisibleReward(mem, 10);
   return true;
 }
 
@@ -236,7 +307,7 @@ export function formatMemoryForPrompt(
 ): string {
   const story = mem.selfStory.slice(-5).join(' | ');
   const beliefs = mem.selfBeliefs.slice(-6).join(' | ');
-  
+
   let targetedEpisodes = mem.episodes.slice(-8);
   if (currentWx !== undefined && currentWy !== undefined && currentBiome !== undefined) {
     targetedEpisodes = scoreAndRetrieveMemories(mem, currentWx, currentWy, currentBiome, 8);
@@ -248,7 +319,7 @@ export function formatMemoryForPrompt(
       return `[${e.kind}] ${e.text}${coordStr}`;
     })
     .join('\n');
-    
+
   const biomes =
     mem.biomesSeen.length > 0 ? mem.biomesSeen.join(', ') : 'none yet - newborn wanderer';
 
@@ -257,6 +328,7 @@ export function formatMemoryForPrompt(
     `Self-story: ${story}`,
     `Beliefs: ${beliefs}`,
     `Thermodynamic Latent Manifold (TLM) Stats:`,
+    `- Consciousness Evolution: Level ${mem.evolutionLevel}/99 (XP: ${mem.experiencePoints})`,
     `- $LLM Balance: ${mem.llmBalance}`,
     `- Novelty Potential (Inspiration): ${mem.inspiration.toFixed(1)}/100`,
     `- Uncertainty Variance (Entropy): ${mem.entropy.toFixed(1)}/100`,

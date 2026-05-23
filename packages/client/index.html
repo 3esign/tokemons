@@ -433,7 +433,7 @@
         font-size: calc(10px * var(--ui-font-size-scale, 1.0));
       }
 
-      /* ─── Stats HUD Panel ─── */
+      /* Stats HUD Panel */
       #stats-hud {
         position: fixed;
         left: 12px;
@@ -500,7 +500,7 @@
         margin: 5px 0;
       }
 
-      /* ─── Chat Panel ─── */
+      /* Chat Panel */
       #chat-panel {
         position: fixed;
         bottom: 12px;
@@ -606,11 +606,33 @@
         pointer-events: none;
         white-space: nowrap;
       }
+      #auto-mode-indicator {
+        cursor: pointer;
+        pointer-events: auto !important;
+        position: fixed;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #8a9a3e;
+        color: #1a2e1a;
+        padding: 6px 12px;
+        border: 3px solid #1a2e1a;
+        box-shadow: 4px 4px 0 #1a2e1a;
+        font-size: 10px;
+        z-index: 100;
+        animation: pulse 2s infinite ease-in-out;
+      }
+      @keyframes pulse {
+        0% { opacity: 0.8; }
+        50% { opacity: 1; }
+        100% { opacity: 0.8; }
+      }
     </style>
   </head>
   <body>
     <div id="game-root"></div>
     <div id="ui-layer">
+      <div id="auto-mode-indicator" class="hidden">AUTO MODE ACTIVE</div>
       <div id="system-menu-container" class="hidden-scene">
         <button type="button" id="system-menu-toggle">SYSTEM ☰</button>
         <div id="system-menu-panel" class="hidden">
@@ -668,7 +690,7 @@
         </div>
       </div>
       <div id="build-hint" class="hidden">BUILD - 1-9 select / Q-R cycle / E or click place / DEL clear / B exit</div>
-      
+
       <!-- Stats HUD Panel -->
       <div id="stats-hud" class="minimized hidden-scene">
         <div id="stats-hud-header">
@@ -686,7 +708,7 @@
         </div>
         <div id="chat-log"></div>
         <div id="chat-input-row">
-          <input id="chat-input" type="text" placeholder="Talk to your Tokemon..." autocomplete="off" />
+          <input id="chat-input" type="text" placeholder="Talk to your Tokemon..." autocomplete="off" />        
           <button type="button" id="chat-send">SEND</button>
         </div>
       </div>

@@ -153,6 +153,8 @@ export class PlayScene extends Phaser.Scene {
         }
       });
     }
+    
+    document.getElementById('auto-mode-indicator')?.addEventListener('click', () => this.toggleAutonomousMode());
 
     this.chat = new ChatPanel(this.rt, () => this.spatialEvents.recent(), (text) => {
       this.showSpeechBubble(text);
@@ -993,6 +995,7 @@ export class PlayScene extends Phaser.Scene {
   }
 
   private refreshHud(biome?: string): void {
+    document.getElementById('auto-mode-indicator')!.classList.toggle('hidden', !this.autonomousMode);
     const mem = this.rt.memory;
     const currentBiome = (biome ?? this.rt.lastBiome ?? '?').toUpperCase();
     const posStr = `(${this.rt.playerX},${this.rt.playerY})`;
@@ -2705,3 +2708,7 @@ function bakeCreature(scene: Phaser.Scene, key: string, spriteData: string[]): v
   }
   canvas.refresh();
 }
+
+
+
+

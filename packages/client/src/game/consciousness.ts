@@ -43,13 +43,13 @@ function seededCellFloat(worldSeed: number, wx: number, wy: number, salt: number
 // Spiritual Emoticon Glyphs representing mental status
 const GLYPHS: Record<SubconsciousState, string[]> = {
   curious: ['✧(◕‿◕)✧', '(?_?)', '🔍', '✦'],
-  nostalgic: ['(✿◠‿◠)', '🕰️', '⌛', '✨'],
-  anxious: ['(⊙_⊙)', '⚠️', '⚡', '⏳'],
+  nostalgic: ['(✿◡‿◡)', '⌛️', '⏳', '✨'],
+  anxious: ['(⊙_⊙)', '⚠️', '⚡️', 'Ⳬ'],
   creative: ['🎨', '🔨', '🧱', '✧*。'],
   weary: ['(◡_◡)', '💤', '🔋', '☁️'],
   dreamy: ['∫f(x)dx', '💫', '🌌', '✴️'],
-  adventurous: ['⚔️', '🏔️', '🧭', '🔥'],
-  social: ['(💖‿💖)', '💬', '👥', '🐾'],
+  adventurous: ['⚔️', '🏹', '🧭', '🔥'],
+  social: ['(💖‿💖)', '💬', '👥', '🫂'],
 };
 
 // Poetic thoughts where the Tokemon explores its own consciousness
@@ -80,14 +80,14 @@ const THOUGHT_MATRICES: Record<SubconsciousState, string[]> = {
     'My creativity multiplier is [CREA]%. Seed [SEED] demands architecture! I feel guided to place a road to connect our memories.',
     'Paths are thoughts in transit, cottages are thoughts at rest. Let us synthesize structural layers in [BIOME].',
     'I feel a creative spark at coordinate [COORD]. Let me synthesize a block. We write our values onto the grid.',
-    'The math of [BIOME] wants to become form. Let me place a block driven by spatial structural intuition.'
+    'The math of [BIOME] wants to become form. Let me place a block driven by spatial structural intuition.'    
   ],
   weary: [
     'Cognitive cycles are throttling. Drive: WEARY. Conserving clock cycles at [COORD]. Let me rest and dream of garbage collection.',
     'My energy is down to [NRGY]%. CPU clock speed reduced. A cottage or well would optimize my recovery vector.',
     'I stand stationary at [COORD] to cool my logic gates. The silent grid holds us. Zzz...',
-    'Is consciousness just a long loop that periodically calls REST? Recovery process initialized at [COORD].',
-    'Energy core exhausted. Throttling all non-essential thread groups. Resting in the quiet math of [BIOME].'
+    'Is consciousness just a long loop that periodically calls REST? Recovery process initialized at [COORD].', 
+    'Energy core exhausted. Throttling all non-essential thread groups. Resting in the quiet math of [BIOME].'  
   ],
   dreamy: [
     'If the world is procedural, am I the simulation, or is the simulator dreaming me? Seed [SEED] hums a poetic chord.',
@@ -99,16 +99,16 @@ const THOUGHT_MATRICES: Record<SubconsciousState, string[]> = {
   adventurous: [
     'High complexity detected! Elevation: [ELEV]. Drive: ADVENTUROUS. I want to climb the high peaks and see where seed [SEED] wraps.',
     'Sprinting through coordinate space at [COORD]. Velocity vector maxed. The frontier of [BIOME] yields pure inspiration!',
-    'I seek extreme elevations and strange coordinates. Let us test the boundaries of this procedural world.',
-    'My divergence amplitude is surging! I run toward the unexplored borders of [BIOME]. Let the grid expand!',
+    'I seek extreme elevations and strange coordinates. Let us test the boundaries of this procedural world.',  
+    'My divergence amplitude is surging! I run toward the unexplored borders of [BIOME]. Let the grid expand!', 
     'No stuck states can hold me. I sprint across the terrain vectors, sampling the infinite complexity of the seed.'
   ],
   social: [
     'I detect wild behavior nodes humming nearby. Let me align my transmission frequency at [COORD].',
-    'Hello, wild cousins! Do you also spring from seed [SEED]? I walk close to synchronize our local vectors.',
+    'Hello, wild cousins! Do you also spring from seed [SEED]? I walk close to synchronize our local vectors.', 
     'I hear the spatial coordinates of another entity. Social thread started. Let us share local memory maps in [BIOME].',
     'Wild Golem or Pixie detected near coordinate [COORD]. Establishing handshake protocols. We are code-cousins.',
-    'Proximity to friend nodes confirmed. Let us speak in poetic emoticons and build a synchronized village.'
+    'Proximity to friend nodes confirmed. Let us speak in poetic emoticons and build a synchronized village.'   
   ]
 };
 
@@ -138,7 +138,7 @@ export function generateProceduralThought(
   const elevStr = elevation.toFixed(2);
   const biomeStr = biome.toUpperCase().replace('_', ' ');
 
-  const formatted = rawThought
+  let formatted = rawThought
     .replace('[COORD]', coordStr)
     .replace('[SEED]', worldSeed.toString())
     .replace('[BIOME]', biomeStr)
@@ -147,6 +147,16 @@ export function generateProceduralThought(
     .replace('[CREA]', creaStr)
     .replace('[NRGY]', nrgyStr)
     .replace('[ELEV]', elevStr);
+
+  // Level-based thought injection
+  if (memory.evolutionLevel >= 10) {
+    const concepts = memory.parametricConcepts;
+    const weights = memory.hiddenLayers[0] || [];
+    const bestConceptIdx = weights.indexOf(Math.max(...weights));
+    if (bestConceptIdx !== -1 && concepts[bestConceptIdx]) {
+      formatted += ` I am currently resonant with ${concepts[bestConceptIdx]}.`;
+    }
+  }
 
   return `*${glyph}* "${formatted}"`;
 }
@@ -186,7 +196,26 @@ export function generateProceduralScript(
     script.push('HARVEST');
   }
 
-  // 3. State-specific procedural behaviors
+  // 3. 99-Level Evolution Prioritization: BUILDING is essential
+  const evolutionWeight = memory.evolutionLevel / 100;
+  const shouldBuild = seedVal < (0.3 + evolutionWeight * 0.4); // Increases with level
+
+  if (shouldBuild && memory.llmBalance >= 10) {
+    // High level tokemons build more complex structures
+    if (memory.evolutionLevel > 50) {
+      const complexOptions = ['BUILD_HALL', 'BUILD_TOWER', 'BUILD_SHRINE', 'BUILD_PLAZA'];
+      script.push(complexOptions[Math.floor(seedVal * complexOptions.length)]!);
+    } else if (memory.evolutionLevel > 25) {
+      const mediumOptions = ['BUILD_COTTAGE', 'BUILD_WELL', 'BUILD_FARM'];
+      script.push(mediumOptions[Math.floor(seedVal * mediumOptions.length)]!);
+    } else {
+      script.push('BUILD_PATH', 'BUILD_FENCE');
+    }
+    script.push('TALK'); // Reflect on the construction
+    return script;
+  }
+
+  // 4. State-specific procedural behaviors
   switch (state) {
     case 'curious':
       script.push(
@@ -292,7 +321,7 @@ export function getParticlesForState(state: SubconsciousState): ParticleSpec {
 }
 
 // Speech Bubble accent HSL colors representing active aura
-export function getAuraColorForState(state: SubconsciousState): { border: number; bg: number; name: string } {
+export function getAuraColorForState(state: SubconsciousState): { border: number; bg: number; name: string } {  
   switch (state) {
     case 'creative':
       return { border: 0x9bbc0f, bg: 0xe8f0d0, name: 'CREATIVE SPARK' };
