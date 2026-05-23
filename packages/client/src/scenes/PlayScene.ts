@@ -1860,11 +1860,11 @@ ${memBlock}`;
     let stepInterval = 100;
     
     if (fidelity === 'easy') {
-      timeThreshold = 3000000;
-      stepInterval = 5000;
+      timeThreshold = 1800000;
+      stepInterval = 3000;
     } else if (fidelity === 'medium') {
-      timeThreshold = 600000;
-      stepInterval = 1000;
+      timeThreshold = 900000;
+      stepInterval = 1500;
     }
 
     // We only trigger an actual LLM API call for updating subconsciousness if:
@@ -1934,19 +1934,19 @@ Respond with exactly a JSON object in this format (no other text, markdown block
             Array.isArray(parsed.behaviorScript) ? parsed.behaviorScript : []
           );
           
-          if (mem.llmSeedRoll >= 0.95) {
+          if (mem.llmSeedRoll! >= 0.95) {
             mintLLM(mem, 100, "Surge (Roll >= 0.95)");
-            this.showSpeechBubble(`*Surge!* "Rolled ${mem.llmSeedRoll.toFixed(2)}! +100 $LLM!"`);
-          } else if (mem.llmSeedRoll >= 0.90) {
+            this.showSpeechBubble(`*Surge!* "Rolled ${mem.llmSeedRoll!.toFixed(2)}! +100 $LLM!"`);
+          } else if (mem.llmSeedRoll! >= 0.90) {
             mintLLM(mem, 50, "Spark (Roll >= 0.90)");
-            this.showSpeechBubble(`*Spark!* "Rolled ${mem.llmSeedRoll.toFixed(2)}! +50 $LLM!"`);
-          } else if (mem.llmSeedRoll <= 0.05) {
+            this.showSpeechBubble(`*Spark!* "Rolled ${mem.llmSeedRoll!.toFixed(2)}! +50 $LLM!"`);
+          } else if (mem.llmSeedRoll! <= 0.05) {
             mem.energy = 100;
             mem.inspiration = 100;
-            this.showSpeechBubble(`*Trance!* "Rolled ${mem.llmSeedRoll.toFixed(2)}! Energy & Inspiration Maxed!"`);
-          } else if (mem.llmSeedRoll <= 0.10) {
+            this.showSpeechBubble(`*Trance!* "Rolled ${mem.llmSeedRoll!.toFixed(2)}! Energy & Inspiration Maxed!"`);
+          } else if (mem.llmSeedRoll! <= 0.10) {
             mem.energy = Math.min(100, mem.energy + 50);
-            this.showSpeechBubble(`*Magnet!* "Rolled ${mem.llmSeedRoll.toFixed(2)}! +50 Energy!"`);
+            this.showSpeechBubble(`*Magnet!* "Rolled ${mem.llmSeedRoll!.toFixed(2)}! +50 Energy!"`);
           }
           
           recordEpisode(mem, {
@@ -2007,19 +2007,19 @@ Respond with exactly a JSON object in this format (no other text, markdown block
     mem.subDirective = directives[mockState];
     mem.subThought = thoughts[mockState];
     
-    if (mem.llmSeedRoll >= 0.95) {
+    if (mem.llmSeedRoll! >= 0.95) {
       mintLLM(mem, 100, "Surge (Roll >= 0.95)");
-      this.showSpeechBubble(`*Surge!* "Rolled ${mem.llmSeedRoll.toFixed(2)}! +100 $LLM!"`);
-    } else if (mem.llmSeedRoll >= 0.90) {
+      this.showSpeechBubble(`*Surge!* "Rolled ${mem.llmSeedRoll!.toFixed(2)}! +100 $LLM!"`);
+    } else if (mem.llmSeedRoll! >= 0.90) {
       mintLLM(mem, 50, "Spark (Roll >= 0.90)");
-      this.showSpeechBubble(`*Spark!* "Rolled ${mem.llmSeedRoll.toFixed(2)}! +50 $LLM!"`);
-    } else if (mem.llmSeedRoll <= 0.05) {
+      this.showSpeechBubble(`*Spark!* "Rolled ${mem.llmSeedRoll!.toFixed(2)}! +50 $LLM!"`);
+    } else if (mem.llmSeedRoll! <= 0.05) {
       mem.energy = 100;
       mem.inspiration = 100;
-      this.showSpeechBubble(`*Trance!* "Rolled ${mem.llmSeedRoll.toFixed(2)}! Energy & Inspiration Maxed!"`);
-    } else if (mem.llmSeedRoll <= 0.10) {
+      this.showSpeechBubble(`*Trance!* "Rolled ${mem.llmSeedRoll!.toFixed(2)}! Energy & Inspiration Maxed!"`);
+    } else if (mem.llmSeedRoll! <= 0.10) {
       mem.energy = Math.min(100, mem.energy + 50);
-      this.showSpeechBubble(`*Magnet!* "Rolled ${mem.llmSeedRoll.toFixed(2)}! +50 Energy!"`);
+      this.showSpeechBubble(`*Magnet!* "Rolled ${mem.llmSeedRoll!.toFixed(2)}! +50 Energy!"`);
     }
 
     recordEpisode(mem, {
@@ -2222,8 +2222,8 @@ ${this.rt.tokemon.name}: "My code recognizes your pattern."`
     const fidelity = cfg.fidelity || 'medium';
     
     let interval = this.autonomousMode ? 60000 : 90000; // 60s in auto-mode, 90s in companion manual-mode
-    if (fidelity === 'easy') interval *= 50;
-    else if (fidelity === 'medium') interval *= 10;
+    if (fidelity === 'easy') interval *= 30;
+    else if (fidelity === 'medium') interval *= 15;
 
     if (elapsed >= interval) {
       this.lastLlmInteractionTime = this.time.now;
