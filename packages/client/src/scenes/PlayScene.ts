@@ -531,7 +531,7 @@ export class PlayScene extends Phaser.Scene {
     if (this.autonomousMode && !this.moveLock) {
       this.autoMoveCooldown -= this.game.loop.delta;
       if (this.autoMoveCooldown <= 0) {
-        this.autoMoveCooldown = 120;
+        this.autoMoveCooldown = 250;
         void this.autonomousStep();
       }
     }
@@ -669,11 +669,11 @@ export class PlayScene extends Phaser.Scene {
     }
 
     this.moveLock = true;
-    this.applyAuraEffects(nx, ny); this.updateHudCache();
+    this.applyAuraEffects(nx, ny);
     this.isSleeping = false; // Manual movement or triggered movement interrupts sleep
 
     this.rt.playerX = nx;
-    this.rt.playerY = ny;
+    this.rt.playerY = ny; this.updateHudCache();
     this.recordVisitation(nx, ny);
     noteWander(this.rt.memory);
 
